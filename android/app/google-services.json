@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "3701615368",
+    "project_id": "kasmate-e65ce",
+    "storage_bucket": "kasmate-e65ce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:3701615368:android:c4d4624c2d722750301abd",
+        "android_client_info": {
+          "package_name": "com.example.ppb1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBse4_oGn9dJzEt_cl_rJ-YaCiD_OhKNqA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
