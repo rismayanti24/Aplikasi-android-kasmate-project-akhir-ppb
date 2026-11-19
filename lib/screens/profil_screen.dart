@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../utils/input_validation.dart';
 import '../data/kas_store.dart';
 import '../data/profil_store.dart';
 import '../models/pengguna.dart';
@@ -18,6 +20,7 @@ class ProfilScreen extends StatelessWidget {
     final waCtrl = TextEditingController(text: profil.noWa);
     final bankCtrl = TextEditingController(text: profil.bank);
     final rekCtrl = TextEditingController(text: profil.noRekening);
+    final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
@@ -33,76 +36,83 @@ class ProfilScreen extends StatelessWidget {
           20,
           MediaQuery.of(ctx).viewInsets.bottom + 20,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Edit profil & rekening bendahara',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: namaCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nama lengkap',
-                border: OutlineInputBorder(),
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Edit profil & rekening bendahara',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: waCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'No WhatsApp',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: bankCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Bank',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: rekCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'No Rekening',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                simpanProfil(
-                  Pengguna(
-                    id: profil.id,
-                    nama: namaCtrl.text.trim(),
-                    noWa: waCtrl.text.trim(),
-                    bank: bankCtrl.text.trim(),
-                    noRekening: rekCtrl.text.trim(),
-                  ),
-                );
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Profil berhasil disimpan')),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF074E3B),
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 16),
+              TextField(
+                controller: namaCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Nama lengkap',
+                  border: OutlineInputBorder(),
                 ),
               ),
-              child: const Text('Simpan'),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: waCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'No WhatsApp',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: bankCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Bank',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: rekCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                validator: validasiNomorRekening,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: const InputDecoration(
+                  labelText: 'No Rekening',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  if (!formKey.currentState!.validate()) return;
+                  simpanProfil(
+                    Pengguna(
+                      id: profil.id,
+                      nama: namaCtrl.text.trim(),
+                      noWa: waCtrl.text.trim(),
+                      bank: bankCtrl.text.trim(),
+                      noRekening: rekCtrl.text.trim(),
+                    ),
+                  );
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profil berhasil disimpan')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF074E3B),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Simpan'),
+              ),
+            ],
+          ),
         ),
       ),
     );
