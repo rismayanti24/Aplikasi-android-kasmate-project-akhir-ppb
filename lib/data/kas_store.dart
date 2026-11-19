@@ -2099,45 +2099,78 @@ class KasStore extends ValueNotifier<KasRootState> {
 
   // ==================== EKSPOR LAPORAN ====================
 
+  /// Escape nilai CSV: bungkus dalam tanda kutip ganda jika mengandung koma, kutip, atau newline.
+  static String _csvEscape(String value) {
+    if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
+  }
+
+  /// Format nomor WA agar tidak dikonversi ke notasi ilmiah oleh Excel (Poin 39).
+  static String _csvNoWa(String noWa) {
+    final bersih = noWa.trim();
+    if (bersih.isEmpty) return '';
+    // ="'08123456789" mencegah Excel menginterpretasi sebagai angka
+    return '="\'$bersih"';
+  }
+
+  /// Format nominal rupiah sebagai teks agar tidak menjadi angka biasa di Excel.
+  static String _csvNominal(int nominal) => 'Rp $nominal';
+
   String generateLaporanCsv() {
     final g = grupAktif;
     final sb = StringBuffer();
+
+    // Header laporan
     sb.writeln('LAPORAN KEUANGAN KASMATE');
-    sb.writeln('Nama Grup,${g.namaGrup}');
+    sb.writeln('Nama Grup,${_csvEscape(g.namaGrup)}');
     sb.writeln('Kode Undangan,${g.kodeUndangan}');
-    sb.writeln('Bendahara,${g.bendahara}');
-    sb.writeln('Saldo Kas,${g.saldo}');
-    sb.writeln('Total Pemasukan,${g.pemasukan}');
-    sb.writeln('Total Pengeluaran,${g.pengeluaran}');
+    sb.writeln('Bendahara,${_csvEscape(g.bendahara)}');
+    sb.writeln('Saldo Kas,${_csvNominal(g.saldo)}');
+    sb.writeln('Total Pemasukan,${_csvNominal(g.pemasukan)}');
+    sb.writeln('Total Pengeluaran,${_csvNominal(g.pengeluaran)}');
     sb.writeln('');
+
+    // Status anggota
     sb.writeln('STATUS ANGGOTA');
-    sb.writeln('Nama Anggota,No WhatsApp,Sisa Tagihan,Status');
+    sb.writeln('Nama Anggota;No WhatsApp;Bank;No Rekening;Sisa Tagihan;Status');
     for (final a in g.anggota) {
       final st = a.status == StatusBayar.lunas
           ? 'Lunas'
           : a.status == StatusBayar.menunggu
-              ? 'Menunggu'
+              ? 'Menunggu Konfirmasi'
               : a.status == StatusBayar.tidakAdaTagihan
                   ? 'Tidak Ada Tagihan'
                   : 'Belum Bayar';
-      sb.writeln('${a.nama},${a.noWa},${a.tagihan},$st');
+      final noWaCsv = _csvNoWa(a.noWa);
+      sb.writeln(
+        '${_csvEscape(a.nama)};$noWaCsv;${_csvEscape(a.bank)};${_csvEscape(a.noRekening)};${_csvNominal(a.tagihan)};$st',
+      );
     }
     sb.writeln('');
+
+    // Riwayat pengeluaran / tagihan
     sb.writeln('RIWAYAT PENGELUARAN');
-    sb.writeln('Judul,Tanggal,Sumber Dana,Total');
+    sb.writeln('Judul;Tanggal;Sumber Dana;Total;Penerima Transfer');
     for (final t in g.daftarTagihan) {
-      sb.writeln('${t.judul},${t.tanggal},${t.sumberDana},${t.total}');
+      sb.writeln(
+        '${_csvEscape(t.judul)};${_csvEscape(t.tanggal)};${_csvEscape(t.sumberDana)};${_csvNominal(t.total)};${_csvEscape(t.namaPenerima)}',
+      );
     }
     sb.writeln('');
+
+    // Riwayat pembayaran
     sb.writeln('RIWAYAT PEMBAYARAN');
-    sb.writeln('Nama Pembayar,Tagihan,Nominal,Waktu,Status');
+    sb.writeln('Nama Pembayar;Tagihan;Nominal;Waktu;Status;Catatan');
     for (final r in g.daftarRiwayatPembayaran) {
       final isAktif = g.anggota.any(
         (a) => a.nama.toLowerCase() == r.namaAnggota.toLowerCase(),
       );
       final namaLabel = isAktif ? r.namaAnggota : '${r.namaAnggota} (Keluar)';
       sb.writeln(
-          '"$namaLabel",${r.judulTagihan},${r.nominal},"${r.waktu}",${r.status}');
+        '${_csvEscape(namaLabel)};${_csvEscape(r.judulTagihan)};${_csvNominal(r.nominal)};${_csvEscape(r.waktu)};${r.status};${_csvEscape(r.catatan ?? '')}',
+      );
     }
     return sb.toString();
   }
