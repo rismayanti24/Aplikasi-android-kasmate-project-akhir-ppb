@@ -290,7 +290,9 @@ class DetailGrupScreen extends StatelessWidget {
           children: [
             Icon(Icons.person_remove_rounded, color: Color(0xFFB91C1C)),
             SizedBox(width: 8),
-            Text('Keluarkan Anggota dari Grup', style: TextStyle(fontWeight: FontWeight.w700)),
+            Expanded(
+              child: Text('Keluarkan Anggota dari Grup', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
         content: Text(
@@ -391,7 +393,9 @@ class DetailGrupScreen extends StatelessWidget {
           children: [
             Icon(Icons.swap_horiz_rounded, color: Color(0xFF2563EB)),
             SizedBox(width: 8),
-            Text('Serahkan Bendahara?', style: TextStyle(fontWeight: FontWeight.w700)),
+            Expanded(
+              child: Text('Serahkan Bendahara?', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
         content: Text(

@@ -242,6 +242,8 @@ class RiwayatScreen extends StatelessWidget {
                                       ),
                                       Text(
                                         '${item.judulTagihan} • ${item.waktu}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: Color(0xFF6B7280),
@@ -335,6 +337,8 @@ class RiwayatScreen extends StatelessWidget {
                                     children: [
                                       Text(
                                         t.judul,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                           fontSize: 14,
@@ -343,6 +347,8 @@ class RiwayatScreen extends StatelessWidget {
                                       const SizedBox(height: 2),
                                       Text(
                                         '${t.tanggal} • ${t.sumberDana}${isTalangan ? " (${t.namaPenerima}${isPenerimaAktif ? "" : " - Keluar"})" : ""} • ${t.items.length} item',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: Color(0xFF6B7280),

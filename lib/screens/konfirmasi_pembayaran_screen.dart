@@ -299,6 +299,8 @@ class KonfirmasiPembayaranScreen extends StatelessWidget {
                                       const SizedBox(height: 2),
                                       Text(
                                         '${formatRupiah(item.nominal)} • ${item.judulTagihan}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: Color(0xFF6B7280),
@@ -484,10 +486,13 @@ class KonfirmasiPembayaranScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+          ),
         ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: const TextStyle(
