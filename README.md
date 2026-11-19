@@ -88,13 +88,15 @@ flowchart TD
 ## 🚀 Fitur Unggulan
 
 - 📊 **Dashboard Finansial:** Kartu saldo kas resmi, total patungan, dan pemisahan jelas antara *Tagihan Saya* vs *Menunggu Dibayar*.
+- 🔍 **Pencarian & Filter Transaksi:** Kolom pencarian realtime dan filter chips (*Lunas, Menunggu, Dibatalkan, Kas Grup, Talangan*) di layar Riwayat.
+- 🛡️ **Audit Trail & Pembatalan Transaksi:** Transparansi pencatatan audit trail dengan alasan pembatalan dan koreksi keuangan otomatis.
 - ⚡ **Animasi & Polish Modern:** Splash screen interaktif, shimmer loading, hero transition pada QR Code, elastic success dialogs, dan animated counters.
-- 📷 **QR Code Scanner & Generator:** Generate QR Code grup untuk transfer cepat, serta QR Scanner bawaan kamera (`mobile_scanner`).
-- 📈 **Statistik Interaktif (`fl_chart`):** Bar chart perbandingan bulanan, pie chart pengeluaran per kategori, dan metrik disiplin bayar.
-- 🔔 **Notifikasi Lokal (`flutter_local_notifications`):** Notifikasi pengingat jatuh tempo, tagihan baru, dan pemberitahuan bukti bayar masuk tanpa perlu server eksternal.
-- 📱 **Integrasi WhatsApp:** Format pesan tagihan rapi satu klik langsung ke aplikasi WhatsApp kontak target.
-- ☁️ **Firebase Multi-User Sync:** Autentikasi akun, sinkronisasi cloud real-time Firestore, dan penyimpanan bukti transfer berbasis dokumen Base64 (100% bebas paywall).
-- 🌓 **Tema Gelap & Terang:** Dukungan penuh Dark Mode dan Light Mode mengikuti preferensi sistem atau manual.
+- 📷 **QR Code Scanner & OCR Struk:** Generate QR Code grup untuk transfer cepat, scanner QR bawaan kamera, serta OCR pemindai struk belanja.
+- 📈 **Statistik Interaktif & Drill-Down:** Diagram batang bulanan, diagram lingkaran kategori pengeluaran, donat interaktif, dan lembar drill-down daftar belanja per kategori.
+- 🔔 **Notifikasi Lokal & WhatsApp:** Notifikasi status bar lokal pengingat jatuh tempo, tagihan baru, dan template pesan penagihan rapi ke WhatsApp.
+- 📁 **Ekspor Laporan CSV Excel-Ready:** Ekspor laporan pembukuan grup ke file `.csv` terstruktur dengan pemisah titik koma (`;`) dan format nomor WhatsApp aman notasi ilmiah di Excel.
+- ☁️ **Firebase Multi-User Sync:** Autentikasi akun, sinkronisasi cloud real-time Firestore, dan penyimpanan bukti transfer subkoleksi Base64.
+- 🌓 **Tema Gelap & Terang:** Dukungan penuh Dark Mode dan Light Mode yang dapat diaktifkan melalui menu Pengaturan.
 
 ---
 
@@ -171,7 +173,7 @@ lib/
 ├── main.dart                       # Entry point, Firebase init & AuthGate
 ├── theme/
 │   ├── app_theme.dart              # Light & Dark theme, SharedAxis transitions
-│   └── theme_controller.dart       # State pengubah tema global
+│   └── theme_controller.dart       # State pengubah tema global (Dark/Light mode)
 ├── models/
 │   ├── grup.dart                   # Data model Grup & Anggota
 │   ├── tagihan.dart                # Model tagihan, riwayat, & konfirmasi bayar
@@ -180,31 +182,42 @@ lib/
 │   ├── kas_store.dart              # Single source of truth state store & Firestore sync
 │   ├── profil_store.dart           # Store profil pengguna aktif
 │   └── dummy.dart                  # Fallback offline dummy data
+├── utils/
+│   ├── format.dart                 # Format mata uang Rupiah & input formatter
+│   ├── hitung_tagihan.dart         # Logika split bill proporsional, pajak & diskon
+│   └── input_validation.dart       # Validasi regex WA, rekening & nominal
 ├── services/
 │   ├── auth_service.dart           # Firebase Authentication handler
 │   ├── firestore_service.dart      # CRUD Firestore & Base64 image processor
 │   └── notification_service.dart   # Local notification manager
 ├── widgets/
 │   ├── animated_counter.dart       # Counter angka Rupiah animasi Tween
-│   ├── empty_state.dart            # Widget empty state informatif
-│   ├── shimmer_loading.dart        # Placeholder loading skeleton
+│   ├── dialog_setoran.dart         # Dialog setor kas bersama untuk bendahara
+│   ├── member_tile.dart            # Komponen kartu anggota
+│   ├── skor_badge.dart             # Badge skor kedisiplinan finansial
+│   ├── status_badge.dart           # Badge status tagihan (Lunas, Belum, Menunggu)
 │   └── success_dialog.dart         # Pop-up dialog sukses animasi elastis
 └── screens/
     ├── splash_screen.dart          # Layar pembuka animasi
     ├── login_screen.dart           # Autentikasi email & password
+    ├── register_screen.dart        # Pendaftaran akun baru & validasi WA
     ├── main_navigation_screen.dart # Navigasi 5 tab utama
     ├── home_screen.dart            # Dashboard ringkasan kas & tagihan
-    ├── riwayat_screen.dart         # Riwayat transaksi & filter
-    ├── split_bill_screen.dart      # Kalkulator split bill & input struk
-    ├── statistik_screen.dart       # Grafik analitik pengeluaran fl_chart
-    ├── profil_screen.dart          # Profil pengguna & skor kedisiplinan
+    ├── riwayat_screen.dart         # Riwayat transaksi, pencarian & filter chip
+    ├── buat_tagihan_screen.dart    # Form pencatatan pengeluaran & split bill
+    ├── statistik_screen.dart       # Grafik analitik pengeluaran fl_chart & drill-down
+    ├── profil_screen.dart          # Profil pengguna & rekening
     ├── bayar_tagihan_screen.dart   # Upload bukti bayar anggota
     ├── konfirmasi_pembayaran_screen.dart # Verifikasi bukti bayar bendahara
-    ├── detail_grup_screen.dart     # Manajemen grup, anggota & QR
-    ├── qr_grup_screen.dart         # Tampilan besar QR Code & scanner
+    ├── buat_grup_screen.dart       # Pembuatan grup baru & pilih tipe grup
+    ├── gabung_grup_screen.dart     # Gabung grup via kode undangan / QR
+    ├── detail_grup_screen.dart     # Manajemen grup, anggota & hak akses
+    ├── qr_grup_screen.dart         # Tampilan besar QR Code grup
+    ├── scan_qr_screen.dart         # Pemindai kamera QR Code undangan
+    ├── scan_struk_screen.dart      # OCR pemindai struk belanja Google ML Kit
     ├── notifikasi_screen.dart      # Log notifikasi dalam aplikasi
-    ├── pengaturan_screen.dart      # Pengaturan preferensi & notifikasi
-    └── export_laporan_screen.dart  # Ekspor ringkasan kas
+    ├── pengaturan_screen.dart      # Pengaturan tema, notifikasi & akun
+    └── export_laporan_screen.dart  # Ekspor laporan keuangan CSV Excel-ready
 ```
 
 ---

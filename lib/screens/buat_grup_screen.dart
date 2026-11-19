@@ -32,8 +32,6 @@ class _BuatGrupScreenState extends State<BuatGrupScreen> {
     super.dispose();
   }
 
-  String get _inviteLink => 'https://kasmate.app/join/$_inviteCode';
-
   Future<void> _simpanDanBagikanWa({required bool bukaWa}) async {
     if (_namaGrupController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -289,12 +287,12 @@ class _BuatGrupScreenState extends State<BuatGrupScreen> {
                           ),
                           onPressed: () {
                             Clipboard.setData(
-                              ClipboardData(
-                                  text: '$_inviteCode ($_inviteLink)'),
+                              ClipboardData(text: _inviteCode),
                             );
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Kode & link undangan disalin'),
+                              SnackBar(
+                                content: Text('Kode undangan "$_inviteCode" disalin'),
+                                behavior: SnackBarBehavior.floating,
                               ),
                             );
                           },
@@ -302,18 +300,17 @@ class _BuatGrupScreenState extends State<BuatGrupScreen> {
                       ],
                     ),
                     const Divider(height: 20, color: Color(0xFFE5E7EB)),
-                    const Text(
-                      'Link undangan otomatis',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _inviteLink,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF2563EB),
-                      ),
+                    const Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFF074E3B)),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Bagikan kode di atas ke teman untuk bergabung melalui menu "Gabung Grup".',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.3),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -32,7 +32,7 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
         _isScanned = true;
         // Jika QR berisi link atau teks, ambil kodenya
         String hasil = raw.trim();
-        // Contoh bila format URL: https://kasmate.app/join?kode=KS2B-7X4Q
+        // Contoh bila format parameter: ?kode=KS2B-7X4Q
         if (hasil.contains('kode=')) {
           final uri = Uri.tryParse(hasil);
           if (uri != null && uri.queryParameters.containsKey('kode')) {

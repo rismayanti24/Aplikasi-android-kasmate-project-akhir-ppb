@@ -383,7 +383,7 @@ class GrupKas {
     this.daftarNotifikasi = const [],
   });
 
-  String get linkUndangan => 'https://kasmate.app/join/$kodeUndangan';
+  String get linkUndangan => kodeUndangan;
 
   GrupKas copyWith({
     String? namaGrup,
@@ -2087,11 +2087,14 @@ class KasStore extends ValueNotifier<KasRootState> {
 
   Future<bool> bagikanUndanganGrupWhatsApp([GrupKas? targetGrup]) async {
     final g = targetGrup ?? grupAktif;
+    final tipeGrupLabel = g.tipeGrup == 'kasResmi' ? 'Kas Resmi' : 'Patungan';
     final pesan = 'Halo teman-teman!\n'
-        'Yuk gabung ke grup kas *${g.namaGrup}* di aplikasi *KasMate*.\n\n'
-        'Kode Undangan: *${g.kodeUndangan}*\n'
-        'Link Undangan: ${g.linkUndangan}\n\n'
-        'Buka aplikasi KasMate -> pilih *Gabung ke grup* -> masukkan kode *${g.kodeUndangan}*.';
+        'Yuk gabung ke grup *${g.namaGrup}* ($tipeGrupLabel) di aplikasi *KasMate*.\n\n'
+        'Kode Undangan: *${g.kodeUndangan}*\n\n'
+        'Cara bergabung:\n'
+        '1. Buka aplikasi KasMate\n'
+        '2. Pilih menu *Gabung Grup*\n'
+        '3. Masukkan kode undangan: *${g.kodeUndangan}* atau scan QR grup.';
 
     final url = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(pesan)}');
     return _bukaUrlWhatsApp(url);
