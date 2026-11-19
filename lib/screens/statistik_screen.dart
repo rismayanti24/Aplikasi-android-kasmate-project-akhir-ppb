@@ -193,15 +193,24 @@ class _StatistikScreenState extends State<StatistikScreen> {
       return false;
     }
 
+    final listUtilitas = <TagihanKas>[];
+    final listBelanja = <TagihanKas>[];
+    final listMakanan = <TagihanKas>[];
+    final listLainnya = <TagihanKas>[];
+
     for (final t in tagihanList) {
       if (cocokKataKunci(t, kataKunciUtilitas)) {
         utilitas += t.total;
+        listUtilitas.add(t);
       } else if (cocokKataKunci(t, kataKunciBelanja)) {
         belanja += t.total;
+        listBelanja.add(t);
       } else if (cocokKataKunci(t, kataKunciMakanan)) {
         makanan += t.total;
+        listMakanan.add(t);
       } else {
         lainnya += t.total;
+        listLainnya.add(t);
       }
     }
 
@@ -219,6 +228,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
         persentase: total > 0 ? (utilitas / total * 100) : 0,
         color: const Color(0xFF0D9488),
         icon: Icons.bolt_rounded,
+        tagihanTerkait: listUtilitas,
       ),
       _KategoriData(
         nama: 'Belanja Kebutuhan',
@@ -226,6 +236,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
         persentase: total > 0 ? (belanja / total * 100) : 0,
         color: const Color(0xFF10B981),
         icon: Icons.shopping_bag_outlined,
+        tagihanTerkait: listBelanja,
       ),
       _KategoriData(
         nama: 'Makanan & Konsumsi',
@@ -233,6 +244,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
         persentase: total > 0 ? (makanan / total * 100) : 0,
         color: const Color(0xFFF59E0B),
         icon: Icons.restaurant_rounded,
+        tagihanTerkait: listMakanan,
       ),
       _KategoriData(
         nama: 'Lain-lain & Opsional',
@@ -240,6 +252,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
         persentase: total > 0 ? (lainnya / total * 100) : 0,
         color: const Color(0xFF6366F1),
         icon: Icons.category_outlined,
+        tagihanTerkait: listLainnya,
       ),
     ];
   }
@@ -276,6 +289,181 @@ class _StatistikScreenState extends State<StatistikScreen> {
       values.add((monthTotal / 1000).toDouble());
     }
     return values;
+  }
+
+  // Drill-down bottom sheet untuk melihat transaksi per kategori (Poin 53)
+  void _tampilkanDrillDown(BuildContext context, _KategoriData kategori) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (_, scrollCtrl) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 4),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: kategori.color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(kategori.icon, size: 18, color: kategori.color),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                kategori.nama,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              Text(
+                                '${kategori.tagihanTerkait.length} transaksi · ${formatRupiah(kategori.nominal)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: kategori.color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${kategori.persentase.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kategori.color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(height: 1, color: const Color(0xFFE2E8F0)),
+                  // List transaksi
+                  Expanded(
+                    child: kategori.tagihanTerkait.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(kategori.icon, size: 48, color: const Color(0xFFCBD5E1)),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Belum ada transaksi di kategori ini',
+                                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollCtrl,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            itemCount: kategori.tagihanTerkait.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (_, i) {
+                              final t = kategori.tagihanTerkait[i];
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: kategori.color.withValues(alpha: 0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(kategori.icon, size: 16, color: kategori.color),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            t.judul,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            t.tanggal,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      formatRupiah(t.total),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: kategori.color,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -938,54 +1126,80 @@ class _StatistikScreenState extends State<StatistikScreen> {
                           const SizedBox(height: 16),
                         ],
 
-                        // Breakdown Items
+                        // Breakdown Items — tappable drill-down (Poin 53)
                         Column(
                           children: kategoriList.map((k) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: k.color,
-                                      shape: BoxShape.circle,
+                            final bisa = k.nominal > 0 || k.tagihanTerkait.isNotEmpty;
+                            return InkWell(
+                              onTap: bisa
+                                  ? () => _tampilkanDrillDown(context, k)
+                                  : null,
+                              borderRadius: BorderRadius.circular(10),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: k.color,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Icon(k.icon, size: 16, color: k.color),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      k.nama,
+                                    const SizedBox(width: 10),
+                                    Icon(k.icon, size: 16, color: k.color),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        k.nama,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: _darkBg,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      formatRupiah(k.nominal),
                                       style: const TextStyle(
                                         fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w700,
                                         color: _darkBg,
                                       ),
                                     ),
-                                  ),
-                                  Text(
-                                    formatRupiah(k.nominal),
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: _darkBg,
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '(${k.persentase.toStringAsFixed(0)}%)',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF94A3B8),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '(${k.persentase.toStringAsFixed(0)}%)',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ],
+                                    if (bisa) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.chevron_right_rounded,
+                                        size: 16,
+                                        color: k.color,
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             );
                           }).toList(),
+                        ),
+                        const SizedBox(height: 4),
+                        const Center(
+                          child: Text(
+                            '* Ketuk kategori untuk melihat daftar transaksinya',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -1122,6 +1336,7 @@ class _KategoriData {
   final double persentase;
   final Color color;
   final IconData icon;
+  final List<TagihanKas> tagihanTerkait;
 
   const _KategoriData({
     required this.nama,
@@ -1129,5 +1344,6 @@ class _KategoriData {
     required this.persentase,
     required this.color,
     required this.icon,
+    this.tagihanTerkait = const [],
   });
 }
