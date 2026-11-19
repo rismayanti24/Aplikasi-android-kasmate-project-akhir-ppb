@@ -1,30 +1,56 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:ppb1/main.dart';
+import 'package:ppb1/widgets/status_badge.dart';
+import 'package:ppb1/widgets/empty_state.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('KasMate Widget Tests', () {
+    testWidgets('StatusBadge menampilkan label dan warna yang sesuai', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                StatusBadge(status: 'lunas'),
+                StatusBadge(status: 'menunggu'),
+                StatusBadge(status: 'belum'),
+              ],
+            ),
+          ),
+        ),
+      );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      expect(find.text('Lunas'), findsOneWidget);
+      expect(find.text('Menunggu'), findsOneWidget);
+      expect(find.text('Belum Bayar'), findsOneWidget);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    testWidgets('KasEmptyState menampilkan judul, deskripsi, dan tombol aksi', (WidgetTester tester) async {
+      bool actionClicked = false;
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: KasEmptyState(
+              icon: Icons.receipt_long_rounded,
+              title: 'Belum Ada Tagihan',
+              subtitle: 'Kamu tidak memiliki kewajiban kas saat ini.',
+              action: ElevatedButton(
+                onPressed: () => actionClicked = true,
+                child: const Text('Buat Tagihan'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Belum Ada Tagihan'), findsOneWidget);
+      expect(find.text('Kamu tidak memiliki kewajiban kas saat ini.'), findsOneWidget);
+      expect(find.byIcon(Icons.receipt_long_rounded), findsOneWidget);
+      expect(find.text('Buat Tagihan'), findsOneWidget);
+
+      await tester.tap(find.text('Buat Tagihan'));
+      expect(actionClicked, isTrue);
+    });
   });
 }

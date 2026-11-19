@@ -706,7 +706,11 @@ class FirestoreService {
       blacklistUids: blacklistUids,
       saldo: data['saldo'] ?? 0,
       pemasukan: data['pemasukan'] ?? 0,
-      pengeluaran: data['pengeluaran'] ?? 0,
+      pengeluaran: (data['tipeGrup'] == 'patungan')
+          ? ((data['pengeluaran'] != null && (data['pengeluaran'] as int) > 0)
+              ? (data['pengeluaran'] as int)
+              : tagihanList.fold<int>(0, (prev, t) => prev + t.total))
+          : (data['pengeluaran'] ?? 0),
       anggota: anggotaList,
       daftarTagihan: tagihanList,
       daftarKonfirmasi: konfirmasiList,

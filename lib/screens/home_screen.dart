@@ -343,6 +343,88 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _tampilkanDialogIngatkanAnggota(BuildContext context, AnggotaKas a) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: a.avatarColor,
+                  child: Text(
+                    a.nama.isNotEmpty ? a.nama[0].toUpperCase() : '?',
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        a.nama,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _darkBg),
+                      ),
+                      Text(
+                        'Total tagihan: ${formatRupiah(a.tagihan)}',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFFDC2626), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF15803D),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.send_rounded, size: 16),
+                label: const Text('Ingatkan via WhatsApp', style: TextStyle(fontWeight: FontWeight.w700)),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final berhasil = await kasStore.kirimTagihanWhatsApp(a);
+                  if (!berhasil && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Gagal membuka WhatsApp. Cek koneksi di perangkat.'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<KasRootState>(
@@ -885,8 +967,38 @@ class _HomeScreenState extends State<HomeScreen> {
                           padding: const EdgeInsets.only(right: 14),
                           child: InkWell(
                             onTap: () {
-                              if (a.tagihan > 0) {
-                                kasStore.kirimTagihanWhatsApp(a);
+                              final isUserSendiri = kasStore.isCurrentUser(a);
+                              if (isUserSendiri) {
+                                if (a.tagihan > 0) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Kamu memiliki tagihan sebesar ${formatRupiah(a.tagihan)}.'),
+                                      behavior: SnackBarBehavior.floating,
+                                      action: SnackBarAction(
+                                        label: 'Bayar Sekarang',
+                                        textColor: Colors.white,
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => const BayarTagihanScreen(),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Ini akun kamu (${a.nama}). Kamu tidak memiliki tagihan.'),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } else if (a.tagihan > 0) {
+                                _tampilkanDialogIngatkanAnggota(context, a);
                               } else if (isLunas) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -909,61 +1021,27 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Container(
-                                      width: 52,
-                                      height: 52,
-                                      decoration: BoxDecoration(
-                                        color: a.avatarColor,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 2),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.05),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
+                                Container(
+                                  width: 52,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    color: a.avatarColor,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.05),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
                                       ),
-                                      child: Center(
-                                        child: Text(
-                                          a.nama.isNotEmpty ? a.nama[0].toUpperCase() : '?',
-                                          style: const TextStyle(fontWeight: FontWeight.w800, color: _darkBg, fontSize: 16),
-                                        ),
-                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      a.nama.isNotEmpty ? a.nama[0].toUpperCase() : '?',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, color: _darkBg, fontSize: 16),
                                     ),
-                                    if (!isBebas)
-                                      Positioned(
-                                        bottom: 0,
-                                        right: 0,
-                                        child: Container(
-                                          width: 16,
-                                          height: 16,
-                                          decoration: BoxDecoration(
-                                            color: isLunas
-                                                ? const Color(0xFF16A34A)
-                                                : (isMenunggu
-                                                    ? const Color(0xFFF59E0B)
-                                                    : const Color(0xFFDC2626)),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 2),
-                                          ),
-                                          child: Center(
-                                            child: Icon(
-                                              isLunas
-                                                  ? Icons.check
-                                                  : (isMenunggu
-                                                      ? Icons.hourglass_top_rounded
-                                                      : Icons.priority_high_rounded),
-                                              size: isMenunggu ? 8 : 9,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                                  ),
                                 ),
                                 const SizedBox(height: 6),
                                 SizedBox(

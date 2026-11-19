@@ -357,7 +357,18 @@ class GrupKas {
   final List<String> blacklistUids;
   final int saldo;
   final int pemasukan;
-  final int pengeluaran;
+  final int _pengeluaran;
+
+  /// Total pengeluaran kas (untuk kasResmi) atau akumulasi tagihan patungan (untuk patungan)
+  int get pengeluaran {
+    if (tipeGrup == 'patungan') {
+      final totalDariTagihan =
+          daftarTagihan.fold<int>(0, (prev, t) => prev + t.total);
+      return totalDariTagihan > _pengeluaran ? totalDariTagihan : _pengeluaran;
+    }
+    return _pengeluaran;
+  }
+
   final List<AnggotaKas> anggota;
   final List<TagihanKas> daftarTagihan;
   final List<KonfirmasiItem> daftarKonfirmasi;
@@ -375,13 +386,13 @@ class GrupKas {
     this.blacklistUids = const [],
     required this.saldo,
     required this.pemasukan,
-    required this.pengeluaran,
+    required int pengeluaran,
     required this.anggota,
     required this.daftarTagihan,
     required this.daftarKonfirmasi,
     required this.daftarRiwayatPembayaran,
     this.daftarNotifikasi = const [],
-  });
+  }) : _pengeluaran = pengeluaran;
 
   String get linkUndangan => kodeUndangan;
 
@@ -413,7 +424,7 @@ class GrupKas {
       blacklistUids: blacklistUids ?? this.blacklistUids,
       saldo: saldo ?? this.saldo,
       pemasukan: pemasukan ?? this.pemasukan,
-      pengeluaran: pengeluaran ?? this.pengeluaran,
+      pengeluaran: pengeluaran ?? _pengeluaran,
       anggota: anggota ?? this.anggota,
       daftarTagihan: daftarTagihan ?? this.daftarTagihan,
       daftarKonfirmasi: daftarKonfirmasi ?? this.daftarKonfirmasi,
@@ -557,6 +568,21 @@ class KasStore extends ValueNotifier<KasRootState> {
       return g.bendaharaUid == myUid;
     }
     return myNama.isNotEmpty && myNama != 'pengguna' && g.bendahara.toLowerCase() == myNama;
+  }
+
+  /// Cek apakah suatu anggota merupakan user yang sedang login saat ini
+  bool isCurrentUser(AnggotaKas a) {
+    final me = currentAnggota;
+    if (me != null && (me.id == a.id || (me.uid != null && me.uid == a.uid))) {
+      return true;
+    }
+    final myUid = currentUserUid;
+    if (myUid.isNotEmpty && (a.uid == myUid || a.id == myUid)) return true;
+    final myNama = currentUserNama.toLowerCase();
+    if (myNama.isNotEmpty && myNama != 'pengguna' && a.nama.toLowerCase() == myNama) return true;
+    final myWa = _formatNomorWa(profilNotifier.value.noWa);
+    if (myWa.isNotEmpty && a.noWa.isNotEmpty && _formatNomorWa(a.noWa) == myWa) return true;
+    return false;
   }
 
   /// Tagihan yang HARUS DIBAYAR oleh user yang sedang login ke orang lain
@@ -1563,6 +1589,7 @@ class KasStore extends ValueNotifier<KasRootState> {
     }).toList();
 
     final kurangiKas = sumberDana == 'Kas grup';
+    final tambahPengeluaran = kurangiKas || g.tipeGrup == 'patungan';
 
     final wNow = DateTime.now();
     final notifTagihan = NotifikasiItem(
@@ -1580,7 +1607,7 @@ class KasStore extends ValueNotifier<KasRootState> {
     _updateGrupAktif(
       g.copyWith(
         saldo: kurangiKas ? g.saldo - total : g.saldo,
-        pengeluaran: kurangiKas ? g.pengeluaran + total : g.pengeluaran,
+        pengeluaran: tambahPengeluaran ? g.pengeluaran + total : g.pengeluaran,
         anggota: anggotaTerupdate,
         daftarTagihan: [tagihanBaru, ...g.daftarTagihan],
         daftarNotifikasi: [notifTagihan, ...g.daftarNotifikasi],
@@ -1776,6 +1803,7 @@ class KasStore extends ValueNotifier<KasRootState> {
     if (targetIndex == -1) return false;
     final target = g.daftarTagihan[targetIndex];
     final kembalikanKas = target.sumberDana == 'Kas grup';
+    final kurangiPengeluaran = kembalikanKas || g.tipeGrup == 'patungan';
 
     // Kurangi tagihan dari anggota yang memang ikut ditagih (Poin 7)
     final anggotaTerupdate = g.anggota.map((a) {
@@ -1835,7 +1863,7 @@ class KasStore extends ValueNotifier<KasRootState> {
     _updateGrupAktif(
       g.copyWith(
         saldo: kembalikanKas ? g.saldo + target.total : g.saldo,
-        pengeluaran: kembalikanKas ? max(0, g.pengeluaran - target.total) : g.pengeluaran,
+        pengeluaran: kurangiPengeluaran ? max(0, g.pengeluaran - target.total) : g.pengeluaran,
         anggota: anggotaTerupdate,
         daftarTagihan: g.daftarTagihan.where((t) => t.id != tagihanId).toList(),
         daftarKonfirmasi: konfirmasiSisa,
@@ -2021,6 +2049,11 @@ class KasStore extends ValueNotifier<KasRootState> {
   }
 
   Future<bool> kirimTagihanWhatsApp(AnggotaKas anggota) async {
+    // Cegah pengiriman pengingat tagihan ke diri sendiri
+    if (isCurrentUser(anggota)) {
+      debugPrint('Tidak dapat mengirim pengingat tagihan ke diri sendiri');
+      return false;
+    }
     final g = grupAktif;
     final profil = profilNotifier.value;
     String bank = profil.bank.isEmpty ? 'Bank' : profil.bank;
