@@ -147,7 +147,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
     return sumLunas > 0 ? sumLunas : g.pemasukan;
   }
 
-  // Data kategori riil dengan validasi fallback data transaksi riil (Poin 42)
+  // Data kategori riil dengan validasi fallback data transaksi riil (Poin 42) & perluasan kamus kata kunci (Poin 52)
   List<_KategoriData> _hitungKategori(
     GrupKas grup,
     List<TagihanKas> tagihanList,
@@ -158,26 +158,47 @@ class _StatistikScreenState extends State<StatistikScreen> {
     int makanan = 0;
     int lainnya = 0;
 
-    for (final t in tagihanList) {
+    const kataKunciUtilitas = [
+      'wifi', 'wi-fi', 'internet', 'indihome', 'biznet', 'firstmedia',
+      'listrik', 'pln', 'token', 'air', 'pdam', 'kas bulanan', 'iuran',
+      'kebersihan', 'keamanan', 'satpam', 'kos', 'kontrakan', 'sewa',
+      'maintenance', 'servis', 'service',
+    ];
+
+    const kataKunciBelanja = [
+      'belanja', 'dapur', 'galon', 'aqua', 'le minerale', 'sembako', 'beras',
+      'minyak', 'telur', 'sabun', 'shampoo', 'deterjen', 'odol', 'tisu', 'tissue',
+      'sapu', 'pel', 'supermarket', 'minimarket', 'indomaret', 'alfamart',
+      'hypermart', 'transmart', 'alat', 'atk', 'print', 'fotokopi', 'modul',
+      'buku', 'kertas',
+    ];
+
+    const kataKunciMakanan = [
+      'makan', 'minum', 'kopi', 'coffee', 'cafe', 'kafe', 'snack', 'cemilan',
+      'sarapan', 'lunch', 'dinner', 'bukber', 'nasi', 'mie', 'bakso', 'sate',
+      'ayam', 'bebek', 'daging', 'sapi', 'kambing', 'ikan', 'seafood', 'udang',
+      'cumi', 'martabak', 'gorengan', 'roti', 'kue', 'boba', 'teh', 'jus',
+      'juice', 'es ', 'burger', 'pizza', 'resto', 'restaurant', 'warung',
+      'warkop', 'geprek', 'pecel', 'soto', 'rawon', 'gudeg', 'rendang',
+      'padang', 'katering', 'catering', 'gofood', 'grabfood', 'shopeefood',
+    ];
+
+    bool cocokKataKunci(TagihanKas t, List<String> kataKunci) {
       final j = t.judul.toLowerCase();
-      if (j.contains('wifi') ||
-          j.contains('wi-fi') ||
-          j.contains('listrik') ||
-          j.contains('token') ||
-          j.contains('air') ||
-          j.contains('kas bulanan') ||
-          j.contains('iuran')) {
+      if (kataKunci.any((k) => j.contains(k))) return true;
+      for (final item in t.items) {
+        final itemNama = item.nama.toLowerCase();
+        if (kataKunci.any((k) => itemNama.contains(k))) return true;
+      }
+      return false;
+    }
+
+    for (final t in tagihanList) {
+      if (cocokKataKunci(t, kataKunciUtilitas)) {
         utilitas += t.total;
-      } else if (j.contains('belanja') ||
-          j.contains('dapur') ||
-          j.contains('galon') ||
-          j.contains('sembako')) {
+      } else if (cocokKataKunci(t, kataKunciBelanja)) {
         belanja += t.total;
-      } else if (j.contains('makan') ||
-          j.contains('kopi') ||
-          j.contains('snack') ||
-          j.contains('ayam') ||
-          j.contains('modul')) {
+      } else if (cocokKataKunci(t, kataKunciMakanan)) {
         makanan += t.total;
       } else {
         lainnya += t.total;
