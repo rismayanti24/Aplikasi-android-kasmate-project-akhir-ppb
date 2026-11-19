@@ -105,6 +105,7 @@ class TagihanKas {
   final String bankPenerima;
   final String rekPenerima;
   final List<String> anggotaDitagihIds;
+  final List<String> anggotaLunasIds;
 
   const TagihanKas({
     required this.id,
@@ -126,7 +127,54 @@ class TagihanKas {
     this.bankPenerima = '',
     this.rekPenerima = '',
     this.anggotaDitagihIds = const [],
+    this.anggotaLunasIds = const [],
   });
+
+  TagihanKas copyWith({
+    String? id,
+    String? judul,
+    String? tanggal,
+    DateTime? jatuhTempo,
+    String? sumberDana,
+    List<ItemBelanja>? items,
+    int? subtotal,
+    double? pajakPersen,
+    int? diskon,
+    int? biayaLayanan,
+    int? pajak,
+    int? total,
+    int? porsiPerOrang,
+    Map<String, int>? porsiAnggota,
+    String? penerimaId,
+    String? namaPenerima,
+    String? bankPenerima,
+    String? rekPenerima,
+    List<String>? anggotaDitagihIds,
+    List<String>? anggotaLunasIds,
+  }) {
+    return TagihanKas(
+      id: id ?? this.id,
+      judul: judul ?? this.judul,
+      tanggal: tanggal ?? this.tanggal,
+      jatuhTempo: jatuhTempo ?? this.jatuhTempo,
+      sumberDana: sumberDana ?? this.sumberDana,
+      items: items ?? this.items,
+      subtotal: subtotal ?? this.subtotal,
+      pajakPersen: pajakPersen ?? this.pajakPersen,
+      diskon: diskon ?? this.diskon,
+      biayaLayanan: biayaLayanan ?? this.biayaLayanan,
+      pajak: pajak ?? this.pajak,
+      total: total ?? this.total,
+      porsiPerOrang: porsiPerOrang ?? this.porsiPerOrang,
+      porsiAnggota: porsiAnggota ?? this.porsiAnggota,
+      penerimaId: penerimaId ?? this.penerimaId,
+      namaPenerima: namaPenerima ?? this.namaPenerima,
+      bankPenerima: bankPenerima ?? this.bankPenerima,
+      rekPenerima: rekPenerima ?? this.rekPenerima,
+      anggotaDitagihIds: anggotaDitagihIds ?? this.anggotaDitagihIds,
+      anggotaLunasIds: anggotaLunasIds ?? this.anggotaLunasIds,
+    );
+  }
 
   int porsiUntuk(String anggotaId) {
     if (porsiAnggota.isNotEmpty) return porsiAnggota[anggotaId] ?? 0;
@@ -585,95 +633,179 @@ class KasStore extends ValueNotifier<KasRootState> {
     return false;
   }
 
+  /// Cek apakah suatu tagihan telah lunas dibayar oleh anggota tertentu (Poin 14 & Sinkronisasi Tagihan)
+  bool isTagihanLunasUntukAnggota(TagihanKas t, AnggotaKas a, [GrupKas? grup]) {
+    final g = grup ?? grupAktif;
+
+    // 1. Yang menalangi sendiri sudah lunas di awal untuk porsinya
+    if (t.sumberDana == 'Dana pribadi' &&
+        (t.penerimaId == a.id || (a.uid != null && a.uid!.isNotEmpty && t.penerimaId == a.uid))) {
+      return true;
+    }
+
+    // 2. Tercatat langsung di daftar anggotaLunasIds pada TagihanKas
+    if (t.anggotaLunasIds.contains(a.id) ||
+        (a.uid != null && a.uid!.isNotEmpty && t.anggotaLunasIds.contains(a.uid!))) {
+      return true;
+    }
+
+    // 3. Tercatat di riwayat pembayaran dengan status 'Lunas'
+    final namaClean = a.nama.trim().toLowerCase();
+    final judulClean = t.judul.trim().toLowerCase();
+
+    final adaDiRiwayatLunas = g.daftarRiwayatPembayaran.any((r) {
+      if (r.status.trim().toLowerCase() != 'lunas') return false;
+
+      final rNama = r.namaAnggota.trim().toLowerCase();
+      final rJudul = r.judulTagihan.trim().toLowerCase();
+
+      final cocokNama = rNama == namaClean ||
+          (a.id.isNotEmpty && (r.buktiPath.contains(a.id) || rNama == a.id.toLowerCase())) ||
+          (a.uid != null && a.uid!.isNotEmpty && (r.buktiPath.contains(a.uid!) || rNama == a.uid!.toLowerCase()));
+
+      final cocokJudul = rJudul == judulClean ||
+          rJudul.startsWith('$judulClean [') ||
+          rJudul.startsWith('$judulClean (');
+
+      return cocokNama && cocokJudul;
+    });
+
+    if (adaDiRiwayatLunas) return true;
+
+    // 4. Jika anggota bebas tagihan / tagihan totalnya 0 dan statusnya lunas
+    if (a.tagihan == 0 && (a.status == StatusBayar.lunas || a.status == StatusBayar.tidakAdaTagihan)) {
+      return true;
+    }
+
+    return false;
+  }
+
   /// Tagihan yang HARUS DIBAYAR oleh user yang sedang login ke orang lain
   List<TagihanDetailItem> tagihanSaya([String? userId]) {
     final me = currentAnggota;
     if (me == null) return [];
 
-    final result = <TagihanDetailItem>[];
     final targetId = userId ?? me.id;
+    final targetAnggota = grupAktif.anggota.firstWhere(
+      (a) => a.id == targetId || (a.uid != null && a.uid == targetId),
+      orElse: () => me,
+    );
 
-    if (me.id == targetId && me.status != StatusBayar.lunas && me.status != StatusBayar.tidakAdaTagihan && me.tagihan > 0) {
-      if (grupAktif.daftarTagihan.isNotEmpty) {
-        for (final t in grupAktif.daftarTagihan) {
-          if (t.penerimaId != me.id && t.porsiUntuk(me.id) > 0) {
-            result.add(
-              TagihanDetailItem(
-                id: 'ts_${t.id}_${me.id}',
-                tagihanId: t.id,
-                judul: t.judul,
-                nominal: t.porsiUntuk(me.id),
-                status: me.status,
-                namaPenerima: t.namaPenerima,
-                penerimaId: t.penerimaId,
-                bankPenerima: t.bankPenerima,
-                rekPenerima: t.rekPenerima,
-                namaPembayar: me.nama,
-                pembayarId: me.id,
-                noWaPembayar: me.noWa,
-                avatarColor: me.avatarColor,
-                sumberDana: t.sumberDana,
-                tanggal: t.tanggal,
-              ),
-            );
-          }
-        }
+    // Jika targetAnggota sudah tidak memiliki kewajiban kas sama sekali
+    if (targetAnggota.tagihan == 0 &&
+        (targetAnggota.status == StatusBayar.lunas ||
+            targetAnggota.status == StatusBayar.tidakAdaTagihan)) {
+      return [];
+    }
+
+    final result = <TagihanDetailItem>[];
+
+    for (final t in grupAktif.daftarTagihan) {
+      if (t.porsiUntuk(targetAnggota.id) <= 0) continue;
+      if (t.sumberDana == 'Dana pribadi' &&
+          (t.penerimaId == targetAnggota.id ||
+              (targetAnggota.uid != null && t.penerimaId == targetAnggota.uid))) {
+        continue;
+      }
+      // PENTING: Lewati tagihan yang SUDAH LUNAS dibayar oleh anggota ini!
+      if (isTagihanLunasUntukAnggota(t, targetAnggota)) {
+        continue;
       }
 
-      if (result.isEmpty) {
-        String bankBendahara = '';
-        String rekBendahara = '';
-        final isMeBendahara = me.nama.toLowerCase() == grupAktif.bendahara.toLowerCase();
-        if (isMeBendahara) {
-          bankBendahara = profilNotifier.value.bank;
-          rekBendahara = profilNotifier.value.noRekening;
-        } else {
-          final bendaharaAnggota = grupAktif.anggota.cast<AnggotaKas?>().firstWhere(
-            (a) => a != null && (
-              a.nama.toLowerCase() == grupAktif.bendahara.toLowerCase() ||
-              (grupAktif.bendaharaUid != null && a.uid == grupAktif.bendaharaUid)
-            ),
-            orElse: () => null,
-          );
-          if (bendaharaAnggota != null && bendaharaAnggota.bank.isNotEmpty) {
-            bankBendahara = bendaharaAnggota.bank;
-            rekBendahara = bendaharaAnggota.noRekening;
-          }
-          if (bankBendahara.isEmpty) {
-            for (final t in grupAktif.daftarTagihan) {
-              if (t.namaPenerima.toLowerCase() == grupAktif.bendahara.toLowerCase() && t.rekPenerima.isNotEmpty) {
-                bankBendahara = t.bankPenerima;
-                rekBendahara = t.rekPenerima;
-                break;
-              }
+      // Cek apakah pembayaran tagihan ini sedang menunggu verifikasi
+      final sedangMenunggu = grupAktif.daftarKonfirmasi.any((k) {
+        final samaAnggota = k.anggotaId == targetAnggota.id ||
+            k.namaAnggota.trim().toLowerCase() ==
+                targetAnggota.nama.trim().toLowerCase();
+        final samaJudul =
+            k.judulTagihan.trim().toLowerCase() == t.judul.trim().toLowerCase();
+        return samaAnggota && samaJudul;
+      });
+
+      result.add(
+        TagihanDetailItem(
+          id: 'ts_${t.id}_${targetAnggota.id}',
+          tagihanId: t.id,
+          judul: t.judul,
+          nominal: t.porsiUntuk(targetAnggota.id),
+          status: sedangMenunggu ? StatusBayar.menunggu : StatusBayar.belum,
+          namaPenerima: t.namaPenerima,
+          penerimaId: t.penerimaId,
+          bankPenerima: t.bankPenerima,
+          rekPenerima: t.rekPenerima,
+          namaPembayar: targetAnggota.nama,
+          pembayarId: targetAnggota.id,
+          noWaPembayar: targetAnggota.noWa,
+          avatarColor: targetAnggota.avatarColor,
+          sumberDana: t.sumberDana,
+          tanggal: t.tanggal,
+        ),
+      );
+    }
+
+    if (result.isEmpty && targetAnggota.tagihan > 0) {
+      String bankBendahara = '';
+      String rekBendahara = '';
+      final isMeBendahara =
+          targetAnggota.nama.toLowerCase() == grupAktif.bendahara.toLowerCase();
+      if (isMeBendahara) {
+        bankBendahara = profilNotifier.value.bank;
+        rekBendahara = profilNotifier.value.noRekening;
+      } else {
+        final bendaharaAnggota =
+            grupAktif.anggota.cast<AnggotaKas?>().firstWhere(
+                  (a) =>
+                      a != null &&
+                      (a.nama.toLowerCase() ==
+                              grupAktif.bendahara.toLowerCase() ||
+                          (grupAktif.bendaharaUid != null &&
+                              a.uid == grupAktif.bendaharaUid)),
+                  orElse: () => null,
+                );
+        if (bendaharaAnggota != null && bendaharaAnggota.bank.isNotEmpty) {
+          bankBendahara = bendaharaAnggota.bank;
+          rekBendahara = bendaharaAnggota.noRekening;
+        }
+        if (bankBendahara.isEmpty) {
+          for (final t in grupAktif.daftarTagihan) {
+            if (t.namaPenerima.toLowerCase() ==
+                    grupAktif.bendahara.toLowerCase() &&
+                t.rekPenerima.isNotEmpty) {
+              bankBendahara = t.bankPenerima;
+              rekBendahara = t.rekPenerima;
+              break;
             }
           }
-          if (bankBendahara.isEmpty) bankBendahara = 'Bank Bendahara';
-          if (rekBendahara.isEmpty) rekBendahara = '-';
         }
-
-        result.add(
-          TagihanDetailItem(
-            id: 'ts_default_${me.id}',
-            tagihanId: 'default',
-            judul: 'Iuran / Tagihan grup',
-            nominal: me.tagihan,
-            status: me.status,
-            namaPenerima: grupAktif.bendahara,
-            penerimaId: grupAktif.bendaharaUid ?? '',
-            bankPenerima: bankBendahara,
-            rekPenerima: rekBendahara,
-            namaPembayar: me.nama,
-            pembayarId: me.id,
-            noWaPembayar: me.noWa,
-            avatarColor: me.avatarColor,
-            sumberDana: grupAktif.tipeGrup == 'kasResmi'
-                ? 'Kas grup'
-                : 'Dana pribadi',
-            tanggal: 'Bulan ini',
-          ),
-        );
+        if (bankBendahara.isEmpty) bankBendahara = 'Bank Bendahara';
+        if (rekBendahara.isEmpty) rekBendahara = '-';
       }
+
+      final sedangMenunggu = grupAktif.daftarKonfirmasi.any((k) =>
+          k.anggotaId == targetAnggota.id ||
+          k.namaAnggota.trim().toLowerCase() ==
+              targetAnggota.nama.trim().toLowerCase());
+
+      result.add(
+        TagihanDetailItem(
+          id: 'ts_default_${targetAnggota.id}',
+          tagihanId: 'default',
+          judul: 'Iuran / Tagihan grup',
+          nominal: targetAnggota.tagihan,
+          status: sedangMenunggu ? StatusBayar.menunggu : StatusBayar.belum,
+          namaPenerima: grupAktif.bendahara,
+          penerimaId: grupAktif.bendaharaUid ?? '',
+          bankPenerima: bankBendahara,
+          rekPenerima: rekBendahara,
+          namaPembayar: targetAnggota.nama,
+          pembayarId: targetAnggota.id,
+          noWaPembayar: targetAnggota.noWa,
+          avatarColor: targetAnggota.avatarColor,
+          sumberDana:
+              grupAktif.tipeGrup == 'kasResmi' ? 'Kas grup' : 'Dana pribadi',
+          tanggal: 'Bulan ini',
+        ),
+      );
     }
 
     return result;
@@ -1772,11 +1904,24 @@ class KasStore extends ValueNotifier<KasRootState> {
 
     final masukKas = item.sumberDana == null || item.sumberDana == 'Kas grup';
 
+    final tagihanTerupdate = g.daftarTagihan.map((t) {
+      if (diterima &&
+          t.judul.trim().toLowerCase() == item.judulTagihan.trim().toLowerCase()) {
+        if (!t.anggotaLunasIds.contains(item.anggotaId)) {
+          return t.copyWith(
+            anggotaLunasIds: [...t.anggotaLunasIds, item.anggotaId],
+          );
+        }
+      }
+      return t;
+    }).toList();
+
     _updateGrupAktif(
       g.copyWith(
         saldo: (diterima && masukKas) ? g.saldo + item.nominal : g.saldo,
         pemasukan: (diterima && masukKas) ? g.pemasukan + item.nominal : g.pemasukan,
         anggota: anggotaTerupdate,
+        daftarTagihan: tagihanTerupdate,
         daftarKonfirmasi: sisaKonfirmasi,
         daftarRiwayatPembayaran: [riwayatBaru, ...g.daftarRiwayatPembayaran],
         daftarNotifikasi: [notifVerif, ...g.daftarNotifikasi],

@@ -467,6 +467,7 @@ class FirestoreService {
                 'bankPenerima': t.bankPenerima,
                 'rekPenerima': t.rekPenerima,
                 'anggotaDitagihIds': t.anggotaDitagihIds,
+                'anggotaLunasIds': t.anggotaLunasIds,
                 'items': t.items
                     .map((i) => {
                           'id': i.id,
@@ -608,6 +609,9 @@ class FirestoreService {
         bankPenerima: map['bankPenerima'] ?? '',
         rekPenerima: map['rekPenerima'] ?? '',
         anggotaDitagihIds: ((map['anggotaDitagihIds'] as List<dynamic>?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        anggotaLunasIds: ((map['anggotaLunasIds'] as List<dynamic>?) ?? [])
             .map((e) => e.toString())
             .toList(),
       );

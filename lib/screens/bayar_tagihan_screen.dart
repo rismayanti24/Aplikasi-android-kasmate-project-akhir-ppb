@@ -102,7 +102,8 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
             ? <TagihanKas>[]
             : state.daftarTagihan.where((t) =>
                 t.porsiUntuk(me.id) > 0 &&
-                !(t.sumberDana == 'Dana pribadi' && t.penerimaId == me.id),
+                !(t.sumberDana == 'Dana pribadi' && t.penerimaId == me.id) &&
+                !kasStore.isTagihanLunasUntukAnggota(t, me),
               ).toList();
         final TagihanKas? tagihanAktif = tagihanUntukSaya.isEmpty
             ? null
