@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import '../utils/hitung_tagihan.dart';
 import '../utils/input_validation.dart';
@@ -26,34 +27,46 @@ enum StatusBayar { tidakAdaTagihan, lunas, menunggu, belum }
 
 class AnggotaKas {
   final String id;
+  final String? uid;
   final String nama;
   final String noWa;
   final int tagihan;
   final StatusBayar status;
   final Color avatarColor;
+  final String bank;
+  final String noRekening;
 
   const AnggotaKas({
     required this.id,
+    this.uid,
     required this.nama,
     required this.noWa,
     required this.tagihan,
     required this.status,
     required this.avatarColor,
+    this.bank = '',
+    this.noRekening = '',
   });
 
   AnggotaKas copyWith({
+    String? uid,
     String? nama,
     String? noWa,
     int? tagihan,
     StatusBayar? status,
+    String? bank,
+    String? noRekening,
   }) {
     return AnggotaKas(
       id: id,
+      uid: uid ?? this.uid,
       nama: nama ?? this.nama,
       noWa: noWa ?? this.noWa,
       tagihan: tagihan ?? this.tagihan,
       status: status ?? this.status,
       avatarColor: avatarColor,
+      bank: bank ?? this.bank,
+      noRekening: noRekening ?? this.noRekening,
     );
   }
 }
@@ -74,6 +87,7 @@ class TagihanKas {
   final String id;
   final String judul;
   final String tanggal;
+  final DateTime? jatuhTempo;
   final String sumberDana;
   final List<ItemBelanja> items;
   final int subtotal;
@@ -96,6 +110,7 @@ class TagihanKas {
     required this.id,
     required this.judul,
     required this.tanggal,
+    this.jatuhTempo,
     required this.sumberDana,
     required this.items,
     required this.subtotal,
@@ -132,6 +147,9 @@ class KonfirmasiItem {
   final String namaFileBukti;
   final String buktiPath;
   final String waktuUnggah;
+  final String? penerimaId;
+  final String? namaPenerima;
+  final String? sumberDana;
 
   const KonfirmasiItem({
     required this.id,
@@ -142,6 +160,9 @@ class KonfirmasiItem {
     required this.namaFileBukti,
     required this.buktiPath,
     required this.waktuUnggah,
+    this.penerimaId,
+    this.namaPenerima,
+    this.sumberDana,
   });
 }
 
@@ -151,8 +172,9 @@ class RiwayatPembayaranItem {
   final String judulTagihan;
   final int nominal;
   final String waktu;
-  final String status; // 'Lunas' atau 'Ditolak'
+  final String status; // 'Lunas', 'Ditolak', atau 'Dibatalkan'
   final String buktiPath;
+  final String? catatan;
 
   const RiwayatPembayaranItem({
     required this.id,
@@ -162,7 +184,24 @@ class RiwayatPembayaranItem {
     required this.waktu,
     required this.status,
     required this.buktiPath,
+    this.catatan,
   });
+
+  RiwayatPembayaranItem copyWith({
+    String? status,
+    String? catatan,
+  }) {
+    return RiwayatPembayaranItem(
+      id: id,
+      namaAnggota: namaAnggota,
+      judulTagihan: judulTagihan,
+      nominal: nominal,
+      waktu: waktu,
+      status: status ?? this.status,
+      buktiPath: buktiPath,
+      catatan: catatan ?? this.catatan,
+    );
+  }
 }
 
 class TagihanDetailItem {
@@ -172,6 +211,7 @@ class TagihanDetailItem {
   final int nominal;
   final StatusBayar status;
   final String namaPenerima;
+  final String penerimaId;
   final String bankPenerima;
   final String rekPenerima;
   final String namaPembayar;
@@ -188,6 +228,7 @@ class TagihanDetailItem {
     required this.nominal,
     required this.status,
     required this.namaPenerima,
+    this.penerimaId = '',
     this.bankPenerima = '',
     this.rekPenerima = '',
     required this.namaPembayar,
@@ -218,6 +259,8 @@ class NotifikasiItem {
   final bool isDibaca;
   final int? nominal;
   final String? terkaitId;
+  final DateTime? createdAt;
+  final String? pengirimUid;
 
   const NotifikasiItem({
     required this.id,
@@ -229,22 +272,77 @@ class NotifikasiItem {
     this.isDibaca = false,
     this.nominal,
     this.terkaitId,
+    this.createdAt,
+    this.pengirimUid,
   });
 
   NotifikasiItem copyWith({
     bool? isDibaca,
+    String? waktu,
+    String? kelompokWaktu,
+    DateTime? createdAt,
+    String? pengirimUid,
   }) {
     return NotifikasiItem(
       id: id,
       judul: judul,
       pesan: pesan,
-      waktu: waktu,
-      kelompokWaktu: kelompokWaktu,
+      waktu: waktu ?? this.waktu,
+      kelompokWaktu: kelompokWaktu ?? this.kelompokWaktu,
       tipe: tipe,
       isDibaca: isDibaca ?? this.isDibaca,
       nominal: nominal,
       terkaitId: terkaitId,
+      createdAt: createdAt ?? this.createdAt,
+      pengirimUid: pengirimUid ?? this.pengirimUid,
     );
+  }
+
+  /// Waktu relatif dinamis (Poin 25)
+  String get waktuDinamis {
+    final t = createdAt;
+    if (t == null) return waktu.isNotEmpty ? waktu : 'Baru saja';
+    final now = DateTime.now();
+    final diff = now.difference(t);
+
+    if (diff.isNegative || diff.inSeconds < 60) {
+      return 'Baru saja';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} menit lalu';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} jam lalu';
+    } else if (diff.inDays == 1) {
+      return 'Kemarin';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} hari lalu';
+    } else if (diff.inDays < 30) {
+      final minggu = (diff.inDays / 7).floor();
+      return '$minggu minggu lalu';
+    } else {
+      return '${t.day}/${t.month}/${t.year}';
+    }
+  }
+
+  /// Kelompok timeline relatif dinamis (Poin 25)
+  String get kelompokWaktuDinamis {
+    final t = createdAt;
+    if (t == null) return kelompokWaktu.isNotEmpty ? kelompokWaktu : 'Hari ini';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final notifDate = DateTime(t.year, t.month, t.day);
+    final diffDays = today.difference(notifDate).inDays;
+
+    if (diffDays <= 0) {
+      return 'Hari ini';
+    } else if (diffDays == 1) {
+      return 'Kemarin';
+    } else if (diffDays < 7) {
+      return 'Minggu ini';
+    } else if (diffDays < 30) {
+      return 'Bulan ini';
+    } else {
+      return 'Lebih lama';
+    }
   }
 }
 
@@ -254,6 +352,9 @@ class GrupKas {
   final String kodeUndangan;
   final String tipeGrup; // 'kasResmi' (ada saldo kas) atau 'patungan' (murni split bill)
   final String bendahara;
+  final String? bendaharaUid;
+  final List<String> anggotaUids;
+  final List<String> blacklistUids;
   final int saldo;
   final int pemasukan;
   final int pengeluaran;
@@ -269,6 +370,9 @@ class GrupKas {
     required this.kodeUndangan,
     this.tipeGrup = 'kasResmi',
     required this.bendahara,
+    this.bendaharaUid,
+    this.anggotaUids = const [],
+    this.blacklistUids = const [],
     required this.saldo,
     required this.pemasukan,
     required this.pengeluaran,
@@ -286,6 +390,9 @@ class GrupKas {
     String? kodeUndangan,
     String? tipeGrup,
     String? bendahara,
+    String? bendaharaUid,
+    List<String>? anggotaUids,
+    List<String>? blacklistUids,
     int? saldo,
     int? pemasukan,
     int? pengeluaran,
@@ -301,6 +408,9 @@ class GrupKas {
       kodeUndangan: kodeUndangan ?? this.kodeUndangan,
       tipeGrup: tipeGrup ?? this.tipeGrup,
       bendahara: bendahara ?? this.bendahara,
+      bendaharaUid: bendaharaUid ?? this.bendaharaUid,
+      anggotaUids: anggotaUids ?? this.anggotaUids,
+      blacklistUids: blacklistUids ?? this.blacklistUids,
       saldo: saldo ?? this.saldo,
       pemasukan: pemasukan ?? this.pemasukan,
       pengeluaran: pengeluaran ?? this.pengeluaran,
@@ -366,17 +476,87 @@ class KasStore extends ValueNotifier<KasRootState> {
   GrupKas get grupAktif => value.grupAktif;
   List<GrupKas> get daftarGrup => value.daftarGrup;
 
+  String get currentUserUid {
+    final uid = profilNotifier.value.id.trim();
+    if (uid.isNotEmpty) return uid;
+    try {
+      return authService.currentUser?.uid ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   String get currentUserNama {
     final nama = profilNotifier.value.nama.trim();
-    return nama.isEmpty ? grupAktif.bendahara : nama;
+    if (nama.isNotEmpty) return nama;
+    try {
+      final fbName = authService.currentUser?.displayName?.trim() ?? '';
+      if (fbName.isNotEmpty) return fbName;
+    } catch (_) {}
+    return 'Pengguna';
   }
 
   AnggotaKas? get currentAnggota {
-    final nama = currentUserNama.toLowerCase();
-    for (final a in grupAktif.anggota) {
-      if (a.nama.toLowerCase() == nama) return a;
+    final myUid = currentUserUid;
+    if (myUid.isNotEmpty) {
+      for (final a in grupAktif.anggota) {
+        if (a.uid == myUid || a.id == myUid) return a;
+      }
     }
-    return grupAktif.anggota.isNotEmpty ? grupAktif.anggota.first : null;
+    final myNama = currentUserNama.toLowerCase();
+    if (myNama.isNotEmpty && myNama != 'pengguna') {
+      for (final a in grupAktif.anggota) {
+        if (a.nama.toLowerCase() == myNama) return a;
+      }
+    }
+    final myWa = _formatNomorWa(profilNotifier.value.noWa);
+    if (myWa.isNotEmpty) {
+      for (final a in grupAktif.anggota) {
+        if (a.noWa.isNotEmpty && _formatNomorWa(a.noWa) == myWa) return a;
+      }
+    }
+    return null;
+  }
+
+  /// Mengecek apakah user yang sedang login berhak menerima / menolak konfirmasi pembayaran
+  bool bisaVerifikasiKonfirmasi(KonfirmasiItem item) {
+    final myUid = currentUserUid;
+    final myNama = currentUserNama.toLowerCase();
+    final g = grupAktif;
+
+    // Pembayar TIDAK BISA memverifikasi pembayaran miliknya sendiri
+    if (item.anggotaId == currentAnggota?.id ||
+        (myUid.isNotEmpty && currentAnggota?.uid == myUid && item.anggotaId == currentAnggota?.id) ||
+        (myNama.isNotEmpty && myNama != 'pengguna' && item.namaAnggota.toLowerCase() == myNama)) {
+      return false;
+    }
+
+    // 1. Cek apakah ada penerimaId spesifik (orang yang menalangi)
+    if (item.penerimaId != null && item.penerimaId!.isNotEmpty) {
+      if (myUid.isNotEmpty && item.penerimaId == myUid) return true;
+      final me = currentAnggota;
+      if (me != null && (item.penerimaId == me.id || (me.uid != null && item.penerimaId == me.uid))) {
+        return true;
+      }
+    }
+
+    // 2. Cek apakah ada namaPenerima spesifik
+    if (item.namaPenerima != null && item.namaPenerima!.isNotEmpty) {
+      if (item.namaPenerima!.toLowerCase() == myNama) return true;
+    }
+
+    // 3. Jika untuk kas grup atau penerima default: Bendahara berhak memverifikasi
+    return isBendahara(g);
+  }
+
+  /// Cek apakah user saat ini adalah bendahara dari grup tertentu
+  bool isBendahara(GrupKas g) {
+    final myUid = currentUserUid;
+    final myNama = currentUserNama.toLowerCase();
+    if (myUid.isNotEmpty && g.bendaharaUid != null && g.bendaharaUid!.isNotEmpty) {
+      return g.bendaharaUid == myUid;
+    }
+    return myNama.isNotEmpty && myNama != 'pengguna' && g.bendahara.toLowerCase() == myNama;
   }
 
   /// Tagihan yang HARUS DIBAYAR oleh user yang sedang login ke orang lain
@@ -399,6 +579,7 @@ class KasStore extends ValueNotifier<KasRootState> {
                 nominal: t.porsiUntuk(me.id),
                 status: me.status,
                 namaPenerima: t.namaPenerima,
+                penerimaId: t.penerimaId,
                 bankPenerima: t.bankPenerima,
                 rekPenerima: t.rekPenerima,
                 namaPembayar: me.nama,
@@ -421,11 +602,24 @@ class KasStore extends ValueNotifier<KasRootState> {
           bankBendahara = profilNotifier.value.bank;
           rekBendahara = profilNotifier.value.noRekening;
         } else {
-          for (final t in grupAktif.daftarTagihan) {
-            if (t.namaPenerima.toLowerCase() == grupAktif.bendahara.toLowerCase() && t.rekPenerima.isNotEmpty) {
-              bankBendahara = t.bankPenerima;
-              rekBendahara = t.rekPenerima;
-              break;
+          final bendaharaAnggota = grupAktif.anggota.cast<AnggotaKas?>().firstWhere(
+            (a) => a != null && (
+              a.nama.toLowerCase() == grupAktif.bendahara.toLowerCase() ||
+              (grupAktif.bendaharaUid != null && a.uid == grupAktif.bendaharaUid)
+            ),
+            orElse: () => null,
+          );
+          if (bendaharaAnggota != null && bendaharaAnggota.bank.isNotEmpty) {
+            bankBendahara = bendaharaAnggota.bank;
+            rekBendahara = bendaharaAnggota.noRekening;
+          }
+          if (bankBendahara.isEmpty) {
+            for (final t in grupAktif.daftarTagihan) {
+              if (t.namaPenerima.toLowerCase() == grupAktif.bendahara.toLowerCase() && t.rekPenerima.isNotEmpty) {
+                bankBendahara = t.bankPenerima;
+                rekBendahara = t.rekPenerima;
+                break;
+              }
             }
           }
           if (bankBendahara.isEmpty) bankBendahara = 'Bank Bendahara';
@@ -440,6 +634,7 @@ class KasStore extends ValueNotifier<KasRootState> {
             nominal: me.tagihan,
             status: me.status,
             namaPenerima: grupAktif.bendahara,
+            penerimaId: grupAktif.bendaharaUid ?? '',
             bankPenerima: bankBendahara,
             rekPenerima: rekBendahara,
             namaPembayar: me.nama,
@@ -491,6 +686,7 @@ class KasStore extends ValueNotifier<KasRootState> {
               nominal: a.tagihan,
               status: a.status,
               namaPenerima: me.nama,
+              penerimaId: me.uid ?? me.id,
               bankPenerima: profilNotifier.value.bank,
               rekPenerima: profilNotifier.value.noRekening,
               namaPembayar: a.nama,
@@ -519,6 +715,10 @@ class KasStore extends ValueNotifier<KasRootState> {
   int get jumlahNotifikasiBelumDibaca =>
       grupAktif.daftarNotifikasi.where((n) => !n.isDibaca).length;
 
+  StreamSubscription<List<NotifikasiItem>>? _notifSub;
+  String _currentNotifGrupId = '';
+  final Set<String> _notifikasiDitampilkanIds = {};
+
   void tambahNotifikasi({
     required String judul,
     required String pesan,
@@ -526,10 +726,14 @@ class KasStore extends ValueNotifier<KasRootState> {
     int? nominal,
     String? terkaitId,
     String kelompokWaktu = 'Hari ini',
+    DateTime? createdAt,
+    String? pengirimUid,
   }) {
     final g = grupAktif;
+    final wNow = createdAt ?? DateTime.now();
+    final pUid = pengirimUid ?? currentUserUid;
     final baru = NotifikasiItem(
-      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'n_${wNow.millisecondsSinceEpoch}',
       judul: judul,
       pesan: pesan,
       waktu: 'Baru saja',
@@ -538,17 +742,43 @@ class KasStore extends ValueNotifier<KasRootState> {
       nominal: nominal,
       terkaitId: terkaitId,
       isDibaca: false,
+      createdAt: wNow,
+      pengirimUid: pUid,
     );
+    _notifikasiDitampilkanIds.add(baru.id);
     _updateGrupAktif(
       g.copyWith(daftarNotifikasi: [baru, ...g.daftarNotifikasi]),
     );
   }
 
+  /// Menandai satu notifikasi telah dibaca (Poin 10)
+  void tandaiNotifikasiDibaca(String id) {
+    final g = grupAktif;
+    final listBaru = g.daftarNotifikasi.map((n) {
+      if (n.id == id) {
+        return n.copyWith(isDibaca: true);
+      }
+      return n;
+    }).toList();
+    _updateGrupAktif(g.copyWith(daftarNotifikasi: listBaru));
+    firestoreService.tandaiNotifikasiDibacaSubkoleksi(
+      grupId: g.id,
+      notifId: id,
+      isDibaca: true,
+    ).catchError((err) {
+      debugPrint('Firestore update notif dibaca note: $err');
+    });
+  }
+
+  /// Menandai semua notifikasi telah dibaca
   void tandaiSemuaNotifikasiDibaca() {
     final g = grupAktif;
     final listBaru =
         g.daftarNotifikasi.map((n) => n.copyWith(isDibaca: true)).toList();
     _updateGrupAktif(g.copyWith(daftarNotifikasi: listBaru));
+    firestoreService.tandaiSemuaNotifikasiDibacaSubkoleksi(g.id).catchError((err) {
+      debugPrint('Firestore update all notif dibaca note: $err');
+    });
   }
 
   void _updateGrupAktif(GrupKas updated) {
@@ -559,41 +789,145 @@ class KasStore extends ValueNotifier<KasRootState> {
     firestoreService.simpanGrup(updated).catchError((err) {
       debugPrint('Firestore update note: $err');
     });
+    // Broadcast notifikasi terbaru ke subkoleksi grup Firestore (Poin 46)
+    if (updated.daftarNotifikasi.isNotEmpty) {
+      final notifTerbaru = updated.daftarNotifikasi.first;
+      firestoreService.simpanNotifikasiSubkoleksi(
+        grupId: updated.id,
+        notifikasi: notifTerbaru,
+      ).catchError((err) {
+        debugPrint('Firestore broadcast subkoleksi note: $err');
+      });
+    }
+  }
+
+  /// Dengarkan subkoleksi notifikasi grup secara realtime (Poin 46)
+  void _listenNotifikasiGrup(String grupId) {
+    if (grupId.isEmpty) {
+      _notifSub?.cancel();
+      _notifSub = null;
+      _currentNotifGrupId = '';
+      return;
+    }
+    if (grupId == _currentNotifGrupId) return;
+    _currentNotifGrupId = grupId;
+    _notifSub?.cancel();
+    _notifSub = firestoreService.streamNotifikasiGrup(grupId).listen(
+      (daftarDariSubkoleksi) {
+        if (daftarDariSubkoleksi.isEmpty) return;
+        final g = grupAktif;
+        if (g.id != grupId) return;
+
+        final currentUid = currentUserUid;
+        for (final item in daftarDariSubkoleksi) {
+          if (!_notifikasiDitampilkanIds.contains(item.id)) {
+            _notifikasiDitampilkanIds.add(item.id);
+            final bukanPengirimSaya = item.pengirimUid != null &&
+                item.pengirimUid!.isNotEmpty &&
+                item.pengirimUid != currentUid;
+            if (bukanPengirimSaya) {
+              notificationService.tampilkanNotifikasi(
+                id: item.id.hashCode,
+                title: item.judul,
+                body: item.pesan,
+                payload: item.tipe.name,
+              );
+            }
+          }
+        }
+
+        // Sinkronkan daftarNotifikasi lokal dengan data subkoleksi
+        final mapNotif = <String, NotifikasiItem>{};
+        for (final n in g.daftarNotifikasi) {
+          mapNotif[n.id] = n;
+        }
+        for (final n in daftarDariSubkoleksi) {
+          mapNotif[n.id] = n;
+        }
+        final listGabungan = mapNotif.values.toList()
+          ..sort((a, b) {
+            final aTime = a.createdAt?.millisecondsSinceEpoch ??
+                (int.tryParse(a.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0);
+            final bTime = b.createdAt?.millisecondsSinceEpoch ??
+                (int.tryParse(b.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0);
+            return bTime.compareTo(aTime);
+          });
+
+        final updated = g.copyWith(daftarNotifikasi: listGabungan);
+        final listBaru = value.daftarGrup
+            .map((itemG) => itemG.id == updated.id ? updated : itemG)
+            .toList();
+        value = KasRootState(aktifGrupId: updated.id, daftarGrup: listBaru);
+      },
+      onError: (err) {
+        debugPrint('Error streaming notifikasi subkoleksi: $err');
+      },
+    );
   }
 
   /// Reset state memori saat logout agar tidak bocor ke user lain
   void resetState() {
+    _notifSub?.cancel();
+    _notifSub = null;
+    _currentNotifGrupId = '';
+    _notifikasiDitampilkanIds.clear();
     value = const KasRootState(aktifGrupId: '', daftarGrup: []);
     _semuaGrupFirestore = [];
   }
 
   List<GrupKas> _semuaGrupFirestore = [];
 
+  /// Muat ulang seluruh grup pengguna dari Firestore (dipanggil saat login / inisialisasi)
+  Future<void> muatUlangGrupDariFirestore([String? targetUid]) async {
+    try {
+      final daftar = await firestoreService.getDaftarGrupSekali();
+      _semuaGrupFirestore = daftar.where((g) => g.id != 'g1' && g.id != 'g2').toList();
+      _filterDanTerapkanGrup();
+    } catch (e) {
+      debugPrint('Error muatUlangGrupDariFirestore: $e');
+    }
+  }
+
   /// Memfilter grup agar hanya menampilkan grup di mana user terdaftar sebagai bendahara/anggota
   void _filterDanTerapkanGrup() {
+    final myUid = currentUserUid;
     final myNama = profilNotifier.value.nama.trim().toLowerCase();
     final myWa = _formatNomorWa(profilNotifier.value.noWa);
     final fbUser = authService.currentUser;
     final myFbName = (fbUser?.displayName ?? '').trim().toLowerCase();
 
     // Jika belum ada user yang login atau nama masih kosong, kosongkan daftar
-    if (myNama.isEmpty && myFbName.isEmpty && fbUser == null) {
+    if (myUid.isEmpty && myNama.isEmpty && myFbName.isEmpty && fbUser == null) {
       value = const KasRootState(aktifGrupId: '', daftarGrup: []);
       return;
     }
 
     final listUser = _semuaGrupFirestore.where((g) {
-      // 1. Cek apakah pembuat/bendahara grup
-      final isBendahara = (myNama.isNotEmpty && g.bendahara.toLowerCase() == myNama) ||
-          (myFbName.isNotEmpty && g.bendahara.toLowerCase() == myFbName);
-      if (isBendahara) return true;
+      // Step 4.2 (Poin 29 & 30): Jika user ada di daftar blacklist grup ini, sembunyikan dari dashboard
+      if (myUid.isNotEmpty && g.blacklistUids.contains(myUid)) {
+        return false;
+      }
 
-      // 2. Cek apakah ada di daftar anggota (nama atau WA sama)
+      // 1. Cek apakah user adalah bendahara berdasarkan UID atau nama
+      if (myUid.isNotEmpty && g.bendaharaUid != null && g.bendaharaUid == myUid) {
+        return true;
+      }
+      final isBendaharaNama = (myNama.isNotEmpty && g.bendahara.toLowerCase() == myNama) ||
+          (myFbName.isNotEmpty && g.bendahara.toLowerCase() == myFbName);
+      if (isBendaharaNama) return true;
+
+      // 2. Cek apakah UID user terdaftar di anggotaUids grup
+      if (myUid.isNotEmpty && g.anggotaUids.contains(myUid)) {
+        return true;
+      }
+
+      // 3. Cek apakah ada di daftar anggota (UID, nama, atau WA sama)
       final isAnggota = g.anggota.any((a) {
+        final matchUid = myUid.isNotEmpty && ((a.uid != null && a.uid == myUid) || a.id == myUid);
         final matchNama = (myNama.isNotEmpty && a.nama.toLowerCase() == myNama) ||
             (myFbName.isNotEmpty && a.nama.toLowerCase() == myFbName);
         final matchWa = myWa.isNotEmpty && a.noWa.isNotEmpty && _formatNomorWa(a.noWa) == myWa;
-        return matchNama || matchWa;
+        return matchUid || matchNama || matchWa;
       });
 
       return isAnggota;
@@ -604,8 +938,107 @@ class KasStore extends ValueNotifier<KasRootState> {
       final ada = listUser.any((g) => g.id == currentId);
       final newId = ada ? currentId : listUser.first.id;
       value = KasRootState(aktifGrupId: newId, daftarGrup: listUser);
+      _listenNotifikasiGrup(newId);
+      // Periksa pengingat jatuh tempo tagihan (Poin 24 & 37)
+      final gAktif = listUser.firstWhere((g) => g.id == newId, orElse: () => listUser.first);
+      if (gAktif.daftarTagihan.isNotEmpty) {
+        notificationService.periksaJatuhTempoTagihan(
+          daftarTagihan: gAktif.daftarTagihan,
+          myNama: myNama,
+          myId: currentAnggota?.id,
+          myUid: myUid,
+        );
+      }
     } else {
       value = const KasRootState(aktifGrupId: '', daftarGrup: []);
+      _listenNotifikasiGrup('');
+    }
+  }
+
+  /// Sinkronisasi edit profil user (nama, no WA, bank, rekening) ke semua grup di Firestore
+  Future<void> perbaruiProfilAnggotaDiSemuaGrup({
+    required String uid,
+    required String namaBaru,
+    required String noWaBaru,
+    String? bankBaru,
+    String? noRekeningBaru,
+  }) async {
+    final targetUid = uid.isNotEmpty ? uid : currentUserUid;
+    final myCurrentNama = currentUserNama.toLowerCase();
+
+    final updatedDaftarGrup = <GrupKas>[];
+    for (final g in value.daftarGrup) {
+      bool grupDiubah = false;
+      String bendaharaBaru = g.bendahara;
+      if ((targetUid.isNotEmpty && g.bendaharaUid == targetUid) ||
+          (g.bendahara.toLowerCase() == myCurrentNama)) {
+        bendaharaBaru = namaBaru;
+        grupDiubah = true;
+      }
+
+      final anggotaBaru = g.anggota.map((a) {
+        final match = (targetUid.isNotEmpty && ((a.uid != null && a.uid == targetUid) || a.id == targetUid)) ||
+            (a.nama.toLowerCase() == myCurrentNama);
+        if (match) {
+          grupDiubah = true;
+          return a.copyWith(
+            uid: targetUid.isNotEmpty ? targetUid : a.uid,
+            nama: namaBaru,
+            noWa: noWaBaru,
+            bank: bankBaru ?? a.bank,
+            noRekening: noRekeningBaru ?? a.noRekening,
+          );
+        }
+        return a;
+      }).toList();
+
+      if (grupDiubah) {
+        final gBaru = g.copyWith(
+          bendahara: bendaharaBaru,
+          bendaharaUid: (targetUid.isNotEmpty && g.bendaharaUid == targetUid) ? targetUid : g.bendaharaUid,
+          anggota: anggotaBaru,
+        );
+        updatedDaftarGrup.add(gBaru);
+        await firestoreService.simpanGrup(gBaru).catchError((_) {});
+      } else {
+        updatedDaftarGrup.add(g);
+      }
+    }
+
+    if (updatedDaftarGrup.isNotEmpty) {
+      value = KasRootState(
+        aktifGrupId: value.aktifGrupId,
+        daftarGrup: updatedDaftarGrup,
+      );
+    }
+  }
+
+  /// Bersihkan referensi user dari semua grup di Firestore saat user menghapus akun
+  Future<void> bersihkanUserDariSemuaGrup(String uid) async {
+    try {
+      final semua = await firestoreService.getDaftarGrupSekali();
+      for (final g in semua) {
+        final ada = g.anggotaUids.contains(uid) ||
+            g.bendaharaUid == uid ||
+            g.anggota.any((a) => a.uid == uid || a.id == uid);
+        if (ada) {
+          final sisaAnggota = g.anggota.where((a) => a.uid != uid && a.id != uid).toList();
+          final sisaUids = g.anggotaUids.where((u) => u != uid).toList();
+          if (sisaAnggota.isEmpty) {
+            await firestoreService.hapusGrup(g.id);
+          } else {
+            final updated = g.copyWith(
+              bendaharaUid: g.bendaharaUid == uid ? (sisaAnggota.isNotEmpty ? sisaAnggota.first.uid : null) : g.bendaharaUid,
+              bendahara: g.bendaharaUid == uid ? (sisaAnggota.isNotEmpty ? sisaAnggota.first.nama : g.bendahara) : g.bendahara,
+              anggota: sisaAnggota,
+              anggotaUids: sisaUids,
+            );
+            await firestoreService.simpanGrup(updated);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error bersihkanUserDariSemuaGrup: $e');
     }
   }
 
@@ -684,6 +1117,7 @@ class KasStore extends ValueNotifier<KasRootState> {
   // ==================== GRUP & UNDANGAN ====================
 
   Future<GrupKas> buatGrupBaru(String namaGrup, String kodeUndangan, [String tipeGrup = 'kasResmi']) async {
+    final currentUid = currentUserUid;
     final namaUser = profilNotifier.value.nama.isEmpty
         ? 'Bendahara Utama'
         : profilNotifier.value.nama;
@@ -691,23 +1125,30 @@ class KasStore extends ValueNotifier<KasRootState> {
         ? ''
         : _formatNomorWa(profilNotifier.value.noWa);
 
+    final anggotaId = currentUid.isNotEmpty ? currentUid : 'a_${DateTime.now().millisecondsSinceEpoch}';
+
     final grupBaru = GrupKas(
       id: 'g_${DateTime.now().millisecondsSinceEpoch}',
       namaGrup: namaGrup.trim(),
       kodeUndangan: kodeUndangan.trim().toUpperCase(),
       tipeGrup: tipeGrup,
       bendahara: namaUser,
+      bendaharaUid: currentUid.isNotEmpty ? currentUid : null,
+      anggotaUids: currentUid.isNotEmpty ? [currentUid] : [],
       saldo: 0,
       pemasukan: 0,
       pengeluaran: 0,
       anggota: [
         AnggotaKas(
-          id: 'a_${DateTime.now().millisecondsSinceEpoch}',
+          id: anggotaId,
+          uid: currentUid.isNotEmpty ? currentUid : null,
           nama: namaUser,
           noWa: waUser,
           tagihan: 0,
           status: StatusBayar.tidakAdaTagihan,
           avatarColor: const Color(0xFFDBEAFE),
+          bank: profilNotifier.value.bank,
+          noRekening: profilNotifier.value.noRekening,
         ),
       ],
       daftarTagihan: const [],
@@ -761,6 +1202,12 @@ class KasStore extends ValueNotifier<KasRootState> {
     final ditemukan = cariGrupByKode(kode);
     if (ditemukan == null) return false;
 
+    // Step 4.2 (Poin 29 & 30): Cek blacklist
+    final currentUid = currentUserUid;
+    if (currentUid.isNotEmpty && ditemukan.blacklistUids.contains(currentUid)) {
+      return false;
+    }
+
     final namaUser = profilNotifier.value.nama.isEmpty
         ? 'Anggota Baru'
         : profilNotifier.value.nama;
@@ -798,40 +1245,69 @@ class KasStore extends ValueNotifier<KasRootState> {
     final ditemukan = await cariGrupByKodeAsync(target);
     if (ditemukan == null) return false;
 
+    final currentUid = currentUserUid;
+    // Step 4.2 (Poin 29 & 30): Cek blacklist
+    if (currentUid.isNotEmpty && ditemukan.blacklistUids.contains(currentUid)) {
+      throw Exception('Kamu telah dikeluarkan dari grup ini dan tidak dapat bergabung kembali tanpa izin bendahara.');
+    }
     final namaUser = profilNotifier.value.nama.isEmpty
         ? 'Anggota Baru'
         : profilNotifier.value.nama;
     final waUser = _formatNomorWa(profilNotifier.value.noWa);
 
-    final sudahAda = ditemukan.anggota.any(
-      (a) => a.nama.toLowerCase() == namaUser.toLowerCase(),
-    );
-
     final daftarAnggotaBaru = List<AnggotaKas>.from(ditemukan.anggota);
-    if (!sudahAda) {
+    final anggotaUidsBaru = Set<String>.from(ditemukan.anggotaUids);
+
+    final indexExisting = daftarAnggotaBaru.indexWhere((a) {
+      if (currentUid.isNotEmpty && ((a.uid != null && a.uid == currentUid) || a.id == currentUid)) return true;
+      if (waUser.isNotEmpty && a.noWa.isNotEmpty && _formatNomorWa(a.noWa) == waUser) return true;
+      return a.nama.toLowerCase() == namaUser.toLowerCase();
+    });
+
+    if (indexExisting >= 0) {
+      final existing = daftarAnggotaBaru[indexExisting];
+      daftarAnggotaBaru[indexExisting] = existing.copyWith(
+        uid: currentUid.isNotEmpty ? currentUid : existing.uid,
+        noWa: waUser.isNotEmpty ? waUser : existing.noWa,
+        bank: profilNotifier.value.bank.isNotEmpty ? profilNotifier.value.bank : existing.bank,
+        noRekening: profilNotifier.value.noRekening.isNotEmpty ? profilNotifier.value.noRekening : existing.noRekening,
+      );
+    } else {
+      final anggotaId = currentUid.isNotEmpty ? currentUid : 'a_${DateTime.now().millisecondsSinceEpoch}';
       daftarAnggotaBaru.add(
         AnggotaKas(
-          id: 'a_${DateTime.now().millisecondsSinceEpoch}',
+          id: anggotaId,
+          uid: currentUid.isNotEmpty ? currentUid : null,
           nama: namaUser,
           noWa: waUser,
           tagihan: 0,
           status: StatusBayar.tidakAdaTagihan,
           avatarColor: _palette[daftarAnggotaBaru.length % _palette.length],
+          bank: profilNotifier.value.bank,
+          noRekening: profilNotifier.value.noRekening,
         ),
       );
     }
 
+    if (currentUid.isNotEmpty) {
+      anggotaUidsBaru.add(currentUid);
+    }
+
+    final wNow = DateTime.now();
     final notif = NotifikasiItem(
-      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'n_${wNow.millisecondsSinceEpoch}',
       judul: 'Anggota Baru Bergabung',
       pesan: '$namaUser telah bergabung ke grup',
       waktu: 'Baru saja',
       kelompokWaktu: 'Hari ini',
       tipe: TipeNotifikasi.anggotaBaru,
+      createdAt: wNow,
+      pengirimUid: currentUid,
     );
 
     final grupTerupdate = ditemukan.copyWith(
       anggota: daftarAnggotaBaru,
+      anggotaUids: anggotaUidsBaru.toList(),
       daftarNotifikasi: [notif, ...ditemukan.daftarNotifikasi],
     );
 
@@ -848,6 +1324,10 @@ class KasStore extends ValueNotifier<KasRootState> {
     // Sinkronisasi pembaruan ke Cloud Firestore
     try {
       await firestoreService.simpanGrup(grupTerupdate);
+      firestoreService.simpanNotifikasiSubkoleksi(
+        grupId: grupTerupdate.id,
+        notifikasi: notif,
+      ).catchError((_) {});
       debugPrint('Berhasil sinkronisasi gabung grup ke Cloud: ${grupTerupdate.namaGrup}');
     } catch (e) {
       debugPrint('Catatan Firestore saat gabung grup: $e');
@@ -861,6 +1341,7 @@ class KasStore extends ValueNotifier<KasRootState> {
       aktifGrupId: grupId,
       daftarGrup: value.daftarGrup,
     );
+    _listenNotifikasiGrup(grupId);
   }
 
   // ==================== CREATE ====================
@@ -879,13 +1360,16 @@ class KasStore extends ValueNotifier<KasRootState> {
       status: StatusBayar.tidakAdaTagihan,
       avatarColor: _palette[g.anggota.length % _palette.length],
     );
+    final wNow = DateTime.now();
     final notif = NotifikasiItem(
-      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'n_${wNow.millisecondsSinceEpoch}',
       judul: 'Anggota Baru Ditambahkan',
       pesan: '${nama.trim()} telah bergabung ke grup',
       waktu: 'Baru saja',
       kelompokWaktu: 'Hari ini',
       tipe: TipeNotifikasi.anggotaBaru,
+      createdAt: wNow,
+      pengirimUid: currentUserUid,
     );
     _updateGrupAktif(
       g.copyWith(
@@ -902,6 +1386,7 @@ class KasStore extends ValueNotifier<KasRootState> {
     String? keterangan,
   }) {
     final g = grupAktif;
+    if (!isBendahara(g)) return;
     if (nominal <= 0) return;
 
     final ket = (keterangan != null && keterangan.trim().isNotEmpty)
@@ -911,14 +1396,17 @@ class KasStore extends ValueNotifier<KasRootState> {
     final saldoBaru = g.saldo + nominal;
     final pemasukanBaru = g.pemasukan + nominal;
 
+    final wNow = DateTime.now();
     final notif = NotifikasiItem(
-      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'n_${wNow.millisecondsSinceEpoch}',
       judul: 'Setoran Kas Masuk',
       pesan: '$penyetorNama menyetor ${formatRupiah(nominal)} ($ket)',
       waktu: 'Baru saja',
       kelompokWaktu: 'Hari ini',
       tipe: TipeNotifikasi.konfirmasiLunas,
       nominal: nominal,
+      createdAt: wNow,
+      pengirimUid: currentUserUid,
     );
 
     final riwayat = RiwayatPembayaranItem(
@@ -964,6 +1452,7 @@ class KasStore extends ValueNotifier<KasRootState> {
     double pajakPersen = 10,
     int diskon = 0,
     int biayaLayanan = 0,
+    DateTime? jatuhTempo,
   }) {
     final g = grupAktif;
     if (items.isEmpty || items.any((item) => item.harga < 0)) {
@@ -1022,13 +1511,24 @@ class KasStore extends ValueNotifier<KasRootState> {
     );
 
     final isMe = penerima.nama.toLowerCase() == currentUserNama.toLowerCase();
-    final bank = isMe ? profil.bank : (penerima.nama.toLowerCase() == g.bendahara.toLowerCase() ? profil.bank : '');
-    final rek = isMe ? profil.noRekening : (penerima.nama.toLowerCase() == g.bendahara.toLowerCase() ? profil.noRekening : '');
+    String bank = penerima.bank;
+    String rek = penerima.noRekening;
+
+    if (isMe) {
+      if (profil.bank.isNotEmpty) bank = profil.bank;
+      if (profil.noRekening.isNotEmpty) rek = profil.noRekening;
+    } else if (penerima.nama.toLowerCase() == g.bendahara.toLowerCase()) {
+      if (bank.isEmpty && currentUserNama.toLowerCase() == g.bendahara.toLowerCase() && profil.bank.isNotEmpty) {
+        bank = profil.bank;
+        rek = profil.noRekening;
+      }
+    }
 
     final tagihanBaru = TagihanKas(
       id: 't_${DateTime.now().millisecondsSinceEpoch}',
       judul: judul.trim().isEmpty ? 'Pengeluaran Baru' : judul.trim(),
       tanggal: _tanggalSekarang(),
+      jatuhTempo: jatuhTempo,
       sumberDana: sumberDana,
       items: List<ItemBelanja>.from(items),
       subtotal: subtotal,
@@ -1064,20 +1564,23 @@ class KasStore extends ValueNotifier<KasRootState> {
 
     final kurangiKas = sumberDana == 'Kas grup';
 
+    final wNow = DateTime.now();
     final notifTagihan = NotifikasiItem(
-      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'n_${wNow.millisecondsSinceEpoch}',
       judul: 'Tagihan Baru Dibuat',
       pesan: 'Tagihan "${tagihanBaru.judul}" (${formatRupiah(total)}) dibagi ke ${targetIds.length} orang',
       waktu: 'Baru saja',
       kelompokWaktu: 'Hari ini',
       tipe: TipeNotifikasi.tagihanBaru,
       nominal: total,
+      createdAt: wNow,
+      pengirimUid: currentUserUid,
     );
 
     _updateGrupAktif(
       g.copyWith(
         saldo: kurangiKas ? g.saldo - total : g.saldo,
-        pengeluaran: g.pengeluaran + total,
+        pengeluaran: kurangiKas ? g.pengeluaran + total : g.pengeluaran,
         anggota: anggotaTerupdate,
         daftarTagihan: [tagihanBaru, ...g.daftarTagihan],
         daftarNotifikasi: [notifTagihan, ...g.daftarNotifikasi],
@@ -1100,6 +1603,9 @@ class KasStore extends ValueNotifier<KasRootState> {
     required String buktiPath,
     String? judulTagihan,
     int? nominal,
+    String? penerimaId,
+    String? namaPenerima,
+    String? sumberDana,
   }) {
     final g = grupAktif;
     final target = g.anggota.firstWhere((a) => a.id == anggotaId);
@@ -1107,6 +1613,32 @@ class KasStore extends ValueNotifier<KasRootState> {
         (g.daftarTagihan.isNotEmpty ? g.daftarTagihan.first.judul : 'Iuran Kas');
     final nominalFinal =
         nominal ?? (target.tagihan > 0 ? target.tagihan : 0);
+
+    // Cari tagihan terkait untuk mengetahui siapa penerima transfer yang berhak verifikasi
+    String finalPenerimaId = penerimaId ?? '';
+    String finalNamaPenerima = namaPenerima ?? '';
+    String finalSumberDana = sumberDana ?? '';
+    if (finalPenerimaId.isEmpty || finalSumberDana.isEmpty) {
+      for (final t in g.daftarTagihan) {
+        if (t.judul.toLowerCase() == judulFinal.toLowerCase() || t.porsiUntuk(anggotaId) == nominalFinal) {
+          if (finalPenerimaId.isEmpty) {
+            finalPenerimaId = t.penerimaId;
+            finalNamaPenerima = t.namaPenerima;
+          }
+          if (finalSumberDana.isEmpty) {
+            finalSumberDana = t.sumberDana;
+          }
+          break;
+        }
+      }
+      if (finalPenerimaId.isEmpty) {
+        finalPenerimaId = g.bendaharaUid ?? '';
+        finalNamaPenerima = g.bendahara;
+      }
+      if (finalSumberDana.isEmpty) {
+        finalSumberDana = 'Kas grup';
+      }
+    }
 
     final konfirmasiBaru = KonfirmasiItem(
       id: 'k_${DateTime.now().millisecondsSinceEpoch}',
@@ -1117,6 +1649,9 @@ class KasStore extends ValueNotifier<KasRootState> {
       namaFileBukti: namaFileBukti,
       buktiPath: buktiPath,
       waktuUnggah: _waktuSekarangLengkap(),
+      penerimaId: finalPenerimaId,
+      namaPenerima: finalNamaPenerima,
+      sumberDana: finalSumberDana,
     );
 
     final anggotaTerupdate = g.anggota.map((a) {
@@ -1126,11 +1661,15 @@ class KasStore extends ValueNotifier<KasRootState> {
       return a;
     }).toList();
 
-    final konfirmasiBersih =
-        g.daftarKonfirmasi.where((k) => k.anggotaId != anggotaId).toList();
+    // Hanya timpa bukti jika untuk anggota dan judul tagihan yang sama (Poin 6)
+    final konfirmasiBersih = g.daftarKonfirmasi
+        .where((k) => !(k.anggotaId == anggotaId &&
+            k.judulTagihan.toLowerCase() == judulFinal.toLowerCase()))
+        .toList();
 
+    final wNow = DateTime.now();
     final notifBukti = NotifikasiItem(
-      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'n_${wNow.millisecondsSinceEpoch}',
       judul: 'Bukti Pembayaran Diunggah',
       pesan: '${target.nama} mengunggah bukti bayar "$judulFinal" — ${formatRupiah(nominalFinal)}',
       waktu: 'Baru saja',
@@ -1138,6 +1677,8 @@ class KasStore extends ValueNotifier<KasRootState> {
       tipe: TipeNotifikasi.buktiPembayaran,
       nominal: nominalFinal,
       terkaitId: konfirmasiBaru.id,
+      createdAt: wNow,
+      pengirimUid: currentUserUid,
     );
 
     _updateGrupAktif(
@@ -1158,18 +1699,24 @@ class KasStore extends ValueNotifier<KasRootState> {
     final g = grupAktif;
     final item = g.daftarKonfirmasi.firstWhere((k) => k.id == konfirmasiId);
 
+    final sisaKonfirmasi =
+        g.daftarKonfirmasi.where((k) => k.id != konfirmasiId).toList();
+
+    // Kurangi tagihan sebesar nominal pembayaran yang disetujui (Poin 6)
     final anggotaTerupdate = g.anggota.map((a) {
       if (a.id == item.anggotaId) {
+        final sisa = diterima ? max(0, a.tagihan - item.nominal) : a.tagihan;
+        final adaKonfirmasiLain = sisaKonfirmasi.any((k) => k.anggotaId == a.id);
+        final statusBaru = sisa == 0
+            ? StatusBayar.lunas
+            : (adaKonfirmasiLain ? StatusBayar.menunggu : StatusBayar.belum);
         return a.copyWith(
-          status: diterima ? StatusBayar.lunas : StatusBayar.belum,
-          tagihan: diterima ? 0 : a.tagihan,
+          status: statusBaru,
+          tagihan: sisa,
         );
       }
       return a;
     }).toList();
-
-    final sisaKonfirmasi =
-        g.daftarKonfirmasi.where((k) => k.id != konfirmasiId).toList();
 
     final riwayatBaru = RiwayatPembayaranItem(
       id: 'rp_${DateTime.now().millisecondsSinceEpoch}',
@@ -1181,8 +1728,9 @@ class KasStore extends ValueNotifier<KasRootState> {
       buktiPath: item.buktiPath,
     );
 
+    final wNow = DateTime.now();
     final notifVerif = NotifikasiItem(
-      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'n_${wNow.millisecondsSinceEpoch}',
       judul: diterima ? 'Pembayaran Dikonfirmasi' : 'Pembayaran Ditolak',
       pesan: diterima
           ? 'Pembayaran ${item.namaAnggota} untuk "${item.judulTagihan}" telah lunas (${formatRupiah(item.nominal)})'
@@ -1191,12 +1739,16 @@ class KasStore extends ValueNotifier<KasRootState> {
       kelompokWaktu: 'Hari ini',
       tipe: diterima ? TipeNotifikasi.konfirmasiLunas : TipeNotifikasi.konfirmasiTolak,
       nominal: item.nominal,
+      createdAt: wNow,
+      pengirimUid: currentUserUid,
     );
+
+    final masukKas = item.sumberDana == null || item.sumberDana == 'Kas grup';
 
     _updateGrupAktif(
       g.copyWith(
-        saldo: diterima ? g.saldo + item.nominal : g.saldo,
-        pemasukan: diterima ? g.pemasukan + item.nominal : g.pemasukan,
+        saldo: (diterima && masukKas) ? g.saldo + item.nominal : g.saldo,
+        pemasukan: (diterima && masukKas) ? g.pemasukan + item.nominal : g.pemasukan,
         anggota: anggotaTerupdate,
         daftarKonfirmasi: sisaKonfirmasi,
         daftarRiwayatPembayaran: [riwayatBaru, ...g.daftarRiwayatPembayaran],
@@ -1211,15 +1763,22 @@ class KasStore extends ValueNotifier<KasRootState> {
     );
   }
 
-  // ==================== DELETE ====================
+  // ==================== DELETE / BATALKAN TRANSAKSI ====================
 
-  void hapusTagihan(String tagihanId) {
+  /// Batalkan transaksi pengeluaran khusus bendahara dengan alasan pembatalan (Poin 3)
+  bool batalkanTagihan(String tagihanId, {required String alasan}) {
     final g = grupAktif;
-    final target = g.daftarTagihan.firstWhere((t) => t.id == tagihanId);
+    if (!isBendahara(g)) return false;
+    final alasanBersih = alasan.trim();
+    if (alasanBersih.isEmpty) return false;
+
+    final targetIndex = g.daftarTagihan.indexWhere((t) => t.id == tagihanId);
+    if (targetIndex == -1) return false;
+    final target = g.daftarTagihan[targetIndex];
     final kembalikanKas = target.sumberDana == 'Kas grup';
 
+    // Kurangi tagihan dari anggota yang memang ikut ditagih (Poin 7)
     final anggotaTerupdate = g.anggota.map((a) {
-      // Hanya kurangi tagihan dari anggota yang memang ikut ditagih (Poin 7)
       final isAnggotaDitagih = target.porsiAnggota.isNotEmpty
           ? target.porsiAnggota.containsKey(a.id)
           : (target.anggotaDitagihIds.isEmpty ||
@@ -1242,44 +1801,161 @@ class KasStore extends ValueNotifier<KasRootState> {
       );
     }).toList();
 
+    // Hapus juga konfirmasi tertunda yang terkait dengan tagihan ini
+    final konfirmasiSisa = g.daftarKonfirmasi
+        .where((k) => k.judulTagihan.toLowerCase() != target.judul.toLowerCase())
+        .toList();
+
+    // Catat ke Audit Trail riwayat transaksi dengan status Dibatalkan (Poin 3)
+    final namaPembatal = currentUserNama.isNotEmpty ? currentUserNama : g.bendahara;
+    final riwayatBatal = RiwayatPembayaranItem(
+      id: 'rb_${DateTime.now().millisecondsSinceEpoch}',
+      namaAnggota: '$namaPembatal (Bendahara)',
+      judulTagihan: '${target.judul} [Dibatalkan]',
+      nominal: target.total,
+      waktu: _waktuSekarangLengkap(),
+      status: 'Dibatalkan',
+      buktiPath: '',
+      catatan: alasanBersih,
+    );
+
+    // Kirim notifikasi audit trail ke grup
+    final notifBatal = NotifikasiItem(
+      id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+      judul: 'Transaksi Dibatalkan',
+      pesan: 'Pengeluaran "${target.judul}" (${formatRupiah(target.total)}) dibatalkan oleh $namaPembatal. Alasan: $alasanBersih',
+      waktu: 'Baru saja',
+      kelompokWaktu: 'Hari ini',
+      tipe: TipeNotifikasi.konfirmasiTolak,
+      nominal: target.total,
+      createdAt: DateTime.now(),
+      pengirimUid: currentUserUid,
+    );
+
     _updateGrupAktif(
       g.copyWith(
         saldo: kembalikanKas ? g.saldo + target.total : g.saldo,
-        pengeluaran: max(0, g.pengeluaran - target.total),
+        pengeluaran: kembalikanKas ? max(0, g.pengeluaran - target.total) : g.pengeluaran,
         anggota: anggotaTerupdate,
         daftarTagihan: g.daftarTagihan.where((t) => t.id != tagihanId).toList(),
+        daftarKonfirmasi: konfirmasiSisa,
+        daftarRiwayatPembayaran: [riwayatBatal, ...g.daftarRiwayatPembayaran],
+        daftarNotifikasi: [notifBatal, ...g.daftarNotifikasi],
       ),
     );
+
+    return true;
   }
 
-  void hapusAnggota(String anggotaId) {
+  void hapusTagihan(String tagihanId, {String alasan = 'Dihapus oleh bendahara'}) {
+    batalkanTagihan(tagihanId, alasan: alasan);
+  }
+
+  /// Menyerahkan peran bendahara kepada anggota lain (Poin 11)
+  bool gantiBendahara(String targetAnggotaId) {
     final g = grupAktif;
+    if (!isBendahara(g)) return false;
+
+    final target = g.anggota.firstWhere(
+      (a) => a.id == targetAnggotaId,
+      orElse: () => g.anggota.first,
+    );
+
+    final targetUid = target.uid ?? (target.id.startsWith('a_') ? null : target.id);
+    final updated = g.copyWith(
+      bendahara: target.nama,
+      bendaharaUid: targetUid,
+    );
+
+    _updateGrupAktif(updated);
+    return true;
+  }
+
+  bool hapusAnggota(String anggotaId, {bool paksa = false}) {
+    final g = grupAktif;
+    if (!isBendahara(g)) return false;
+
+    // Bendahara tidak bisa mengeluarkan dirinya sendiri lewat aksi ini
+    final me = currentAnggota;
+    if (me != null && me.id == anggotaId) return false;
+
+    // Cek tunggakan sebelum mengeluarkan anggota (Poin 28)
+    AnggotaKas? target;
+    for (final a in g.anggota) {
+      if (a.id == anggotaId) {
+        target = a;
+        break;
+      }
+    }
+    if (target != null && target.tagihan > 0 && !paksa) {
+      return false; // Ditolak: masih ada tunggakan dan bukan aksi paksa
+    }
+
+    // Step 4.2 (Poin 29 & 30): Blacklist & pencabutan akses anggota
+    final targetUid = target?.uid ??
+        (target != null && !target.id.startsWith('a_') ? target.id : '');
+    final newBlacklist = Set<String>.from(g.blacklistUids);
+    final newAnggotaUids = Set<String>.from(g.anggotaUids);
+
+    if (targetUid.isNotEmpty) {
+      newBlacklist.add(targetUid);
+      newAnggotaUids.remove(targetUid);
+    }
+
+    final wNow = DateTime.now();
+    final notifDikeluarkan = NotifikasiItem(
+      id: 'n_${wNow.millisecondsSinceEpoch}',
+      judul: 'Anggota Dikeluarkan',
+      pesan:
+          '${target?.nama ?? "Seorang anggota"} telah dikeluarkan dari grup ${g.namaGrup}',
+      waktu: 'Baru saja',
+      kelompokWaktu: 'Hari ini',
+      tipe: TipeNotifikasi.konfirmasiTolak,
+      createdAt: wNow,
+      pengirimUid: currentUserUid,
+    );
+
     _updateGrupAktif(
       g.copyWith(
         anggota: g.anggota.where((a) => a.id != anggotaId).toList(),
+        anggotaUids: newAnggotaUids.toList(),
+        blacklistUids: newBlacklist.toList(),
         daftarKonfirmasi:
             g.daftarKonfirmasi.where((k) => k.anggotaId != anggotaId).toList(),
+        daftarNotifikasi: [notifDikeluarkan, ...g.daftarNotifikasi],
       ),
     );
+    return true;
   }
 
-  void editNamaGrup(String grupId, String namaBaru) {
-    final listBaru = value.daftarGrup.map((g) {
-      if (g.id == grupId) {
-        final updated = g.copyWith(namaGrup: namaBaru.trim());
+  bool editNamaGrup(String grupId, String namaBaru) {
+    final gIndex = value.daftarGrup.indexWhere((x) => x.id == grupId);
+    if (gIndex < 0) return false;
+    final g = value.daftarGrup[gIndex];
+    if (!isBendahara(g)) return false;
+
+    final listBaru = value.daftarGrup.map((item) {
+      if (item.id == grupId) {
+        final updated = item.copyWith(namaGrup: namaBaru.trim());
         firestoreService.simpanGrup(updated).catchError((_) {});
         return updated;
       }
-      return g;
+      return item;
     }).toList();
     value = KasRootState(aktifGrupId: value.aktifGrupId, daftarGrup: listBaru);
+    return true;
   }
 
   bool hapusGrup(String grupId) {
+    final gIndex = value.daftarGrup.indexWhere((x) => x.id == grupId);
+    if (gIndex < 0) return false;
+    final g = value.daftarGrup[gIndex];
+    if (!isBendahara(g)) return false;
+
     if (value.daftarGrup.length <= 1) {
       return false;
     }
-    final sisaGrup = value.daftarGrup.where((g) => g.id != grupId).toList();
+    final sisaGrup = value.daftarGrup.where((item) => item.id != grupId).toList();
     final newAktifId =
         value.aktifGrupId == grupId ? sisaGrup.first.id : value.aktifGrupId;
     value = KasRootState(aktifGrupId: newAktifId, daftarGrup: sisaGrup);
@@ -1287,12 +1963,42 @@ class KasStore extends ValueNotifier<KasRootState> {
     return true;
   }
 
-  void keluarDariGrup(String grupId) {
-    final me = currentAnggota;
-    if (me != null) {
-      final g = value.daftarGrup.firstWhere((x) => x.id == grupId);
-      final sisaAnggota = g.anggota.where((a) => a.id != me.id).toList();
-      _updateGrupAktif(g.copyWith(anggota: sisaAnggota));
+  Future<void> keluarDariGrup(String grupId) async {
+    final myUid = currentUserUid;
+    final myNama = currentUserNama.toLowerCase();
+    final myWa = _formatNomorWa(profilNotifier.value.noWa);
+
+    final gIndex = value.daftarGrup.indexWhere((x) => x.id == grupId);
+    if (gIndex >= 0) {
+      final g = value.daftarGrup[gIndex];
+      // Bendahara tidak boleh keluar sebelum menyerahkan peran bendahara ke anggota lain (Poin 11 & 33)
+      if (isBendahara(g) && g.anggota.length > 1) {
+        throw Exception('Bendahara tidak boleh keluar sebelum menyerahkan peran bendahara ke anggota lain.');
+      }
+      final sisaAnggota = g.anggota.where((a) {
+        if (myUid.isNotEmpty && ((a.uid != null && a.uid == myUid) || a.id == myUid)) return false;
+        if (myNama.isNotEmpty && a.nama.toLowerCase() == myNama) return false;
+        if (myWa.isNotEmpty && a.noWa.isNotEmpty && _formatNomorWa(a.noWa) == myWa) return false;
+        return true;
+      }).toList();
+
+      final sisaUids = g.anggotaUids.where((u) => u != myUid).toList();
+      final updatedGrup = g.copyWith(
+        anggota: sisaAnggota,
+        anggotaUids: sisaUids,
+      );
+
+      // Sinkronkan ke Firestore
+      if (sisaAnggota.isEmpty) {
+        await firestoreService.hapusGrup(grupId).catchError((_) {});
+      } else {
+        await firestoreService.simpanGrup(updatedGrup).catchError((_) {});
+      }
+
+      // Hapus dari state lokal user saat ini
+      final sisaGrup = value.daftarGrup.where((x) => x.id != grupId).toList();
+      final newAktifId = sisaGrup.isNotEmpty ? sisaGrup.first.id : '';
+      value = KasRootState(aktifGrupId: newAktifId, daftarGrup: sisaGrup);
     }
   }
 
@@ -1317,16 +2023,48 @@ class KasStore extends ValueNotifier<KasRootState> {
   Future<bool> kirimTagihanWhatsApp(AnggotaKas anggota) async {
     final g = grupAktif;
     final profil = profilNotifier.value;
-    final bank = profil.bank.isEmpty ? 'Bank' : profil.bank;
-    final rekening =
+    String bank = profil.bank.isEmpty ? 'Bank' : profil.bank;
+    String rekening =
         profil.noRekening.isEmpty ? '-' : profil.noRekening;
-    final penerima = profil.nama.isEmpty ? g.bendahara : profil.nama;
-    final judulTagihan =
-        g.daftarTagihan.isNotEmpty ? g.daftarTagihan.first.judul : 'Iuran Kas';
-    final nominalText = formatRupiah(anggota.tagihan);
+    String penerima = profil.nama.isEmpty ? g.bendahara : profil.nama;
 
-    final pesan = 'Halo ${anggota.nama},\n'
-        'Pengingat tagihan *${g.namaGrup}* untuk *$judulTagihan* sebesar *$nominalText*.\n\n'
+    // Cari seluruh rincian tagihan tertunggak milik anggota terkait (Poin 14)
+    final tagihanTerkait = g.daftarTagihan.where((t) {
+      return t.anggotaDitagihIds.contains(anggota.id) ||
+          t.porsiAnggota.containsKey(anggota.id) ||
+          t.porsiAnggota.containsKey(anggota.nama) ||
+          (anggota.uid != null && t.anggotaDitagihIds.contains(anggota.uid));
+    }).toList();
+
+    // Jika tagihan adalah talangan yang memiliki info rekening tujuan penerima
+    if (tagihanTerkait.isNotEmpty) {
+      final tPertama = tagihanTerkait.first;
+      if (tPertama.rekPenerima.isNotEmpty && tPertama.rekPenerima != '-') {
+        bank = tPertama.bankPenerima.isNotEmpty ? tPertama.bankPenerima : bank;
+        rekening = tPertama.rekPenerima;
+        penerima = tPertama.namaPenerima.isNotEmpty ? tPertama.namaPenerima : penerima;
+      }
+    }
+
+    final totalTunggakanText = formatRupiah(anggota.tagihan);
+    final sbRincian = StringBuffer();
+
+    if (tagihanTerkait.isNotEmpty) {
+      for (final t in tagihanTerkait) {
+        final porsi = t.porsiAnggota[anggota.id] ??
+            t.porsiAnggota[anggota.nama] ??
+            (anggota.uid != null ? t.porsiAnggota[anggota.uid] : null) ??
+            t.porsiPerOrang;
+        sbRincian.writeln('• ${t.judul}: ${formatRupiah(porsi)}');
+      }
+    } else {
+      sbRincian.writeln('• Iuran Kas: $totalTunggakanText');
+    }
+
+    final pesan = 'Halo ${anggota.nama},\n\n'
+        'Pengingat tagihan *${g.namaGrup}*:\n'
+        '${sbRincian.toString().trimRight()}\n'
+        'Total Tagihan: *$totalTunggakanText*\n\n'
         'Silakan transfer ke:\n'
         '$bank $rekening a.n. $penerima\n\n'
         'Jika sudah transfer, mohon unggah bukti bayar di aplikasi *KasMate*. Terima kasih!';
@@ -1335,9 +2073,12 @@ class KasStore extends ValueNotifier<KasRootState> {
     final url = Uri.parse(
       'https://wa.me/$nomorTujuan?text=${Uri.encodeComponent(pesan)}',
     );
+    final judulSummary = tagihanTerkait.isNotEmpty
+        ? tagihanTerkait.map((t) => t.judul).join(', ')
+        : 'Iuran Kas';
     tambahNotifikasi(
       judul: 'Pengingat WhatsApp Terkirim',
-      pesan: 'Pengingat tagihan "$judulTagihan" dikirim ke ${anggota.nama}',
+      pesan: 'Pengingat tagihan "$judulSummary" dikirim ke ${anggota.nama}',
       tipe: TipeNotifikasi.pengingatWa,
       nominal: anggota.tagihan,
     );
@@ -1391,8 +2132,12 @@ class KasStore extends ValueNotifier<KasRootState> {
     sb.writeln('RIWAYAT PEMBAYARAN');
     sb.writeln('Nama Pembayar,Tagihan,Nominal,Waktu,Status');
     for (final r in g.daftarRiwayatPembayaran) {
+      final isAktif = g.anggota.any(
+        (a) => a.nama.toLowerCase() == r.namaAnggota.toLowerCase(),
+      );
+      final namaLabel = isAktif ? r.namaAnggota : '${r.namaAnggota} (Keluar)';
       sb.writeln(
-          '${r.namaAnggota},${r.judulTagihan},${r.nominal},"${r.waktu}",${r.status}');
+          '"$namaLabel",${r.judulTagihan},${r.nominal},"${r.waktu}",${r.status}');
     }
     return sb.toString();
   }

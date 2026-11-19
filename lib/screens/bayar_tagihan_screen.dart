@@ -1,4 +1,3 @@
-import '../data/profil_store.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -55,7 +54,8 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                 Navigator.pop(ctx);
                 final file = await _picker.pickImage(
                   source: ImageSource.gallery,
-                  imageQuality: 80,
+                  maxWidth: 800,
+                  imageQuality: 50,
                 );
                 if (file != null && mounted) {
                   setState(() => _buktiFoto = file);
@@ -70,7 +70,8 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                 Navigator.pop(ctx);
                 final file = await _picker.pickImage(
                   source: ImageSource.camera,
-                  imageQuality: 80,
+                  maxWidth: 800,
+                  imageQuality: 50,
                 );
                 if (file != null && mounted) {
                   setState(() => _buktiFoto = file);
@@ -134,12 +135,32 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
         final namaPenerima = (tagihanAktif != null && tagihanAktif.namaPenerima.isNotEmpty)
             ? tagihanAktif.namaPenerima
             : state.bendahara;
+        final AnggotaKas? penerimaAnggota = state.anggota.cast<AnggotaKas?>().firstWhere(
+          (a) => a != null && (
+            (tagihanAktif != null && tagihanAktif.penerimaId.isNotEmpty && (a.id == tagihanAktif.penerimaId || a.uid == tagihanAktif.penerimaId)) ||
+            (tagihanAktif != null && tagihanAktif.namaPenerima.isNotEmpty && a.nama.toLowerCase() == tagihanAktif.namaPenerima.toLowerCase()) ||
+            a.nama.toLowerCase() == state.bendahara.toLowerCase()
+          ),
+          orElse: () => null,
+        );
+
         final bankTujuan = (tagihanAktif != null && tagihanAktif.bankPenerima.isNotEmpty)
             ? tagihanAktif.bankPenerima
-            : (profilNotifier.value.bank.isNotEmpty ? profilNotifier.value.bank : 'Bank Belum Diatur');
+            : (penerimaAnggota != null && penerimaAnggota.bank.isNotEmpty
+                ? penerimaAnggota.bank
+                : 'Bank Belum Diatur');
         final rekTujuan = (tagihanAktif != null && tagihanAktif.rekPenerima.isNotEmpty)
             ? tagihanAktif.rekPenerima
-            : (profilNotifier.value.noRekening.isNotEmpty ? profilNotifier.value.noRekening : '-');
+            : (penerimaAnggota != null && penerimaAnggota.noRekening.isNotEmpty
+                ? penerimaAnggota.noRekening
+                : '-');
+
+        final bool sudahAdaBuktiMenunggu = aktif != null &&
+            state.daftarKonfirmasi.any((k) =>
+                k.anggotaId == aktif.id &&
+                (tagihanAktif == null ||
+                    k.judulTagihan.toLowerCase() ==
+                        tagihanAktif.judul.toLowerCase()));
 
         final bisaKirim = aktif != null && _buktiFoto != null;
 
@@ -228,6 +249,59 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
+                  if (aktif == null) ...[
+                    const SizedBox(height: 60),
+                    Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.check_circle_outline_rounded, size: 56, color: Color(0xFF10B981)),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Tidak ada tagihan',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Kamu tidak memiliki tagihan yang perlu dibayar saat ini.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                  if (sudahAdaBuktiMenunggu) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFED7AA)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded,
+                              size: 18, color: Color(0xFFB45309)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Bukti untuk tagihan ini sudah diunggah dan sedang menunggu verifikasi oleh $namaPenerima.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF9A3412),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
@@ -269,27 +343,21 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: aktif == null
-                                    ? const Color(0xFFDCFCE7)
-                                    : aktif.status == StatusBayar.menunggu
-                                        ? const Color(0xFFFEF3C7)
-                                        : const Color(0xFFFEE2E2),
+                                color: aktif.status == StatusBayar.menunggu
+                                    ? const Color(0xFFFEF3C7)
+                                    : const Color(0xFFFEE2E2),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                aktif == null
-                                    ? 'Lunas'
-                                    : aktif.status == StatusBayar.menunggu
-                                        ? 'Menunggu'
-                                        : 'Belum bayar',
+                                aktif.status == StatusBayar.menunggu
+                                    ? 'Menunggu'
+                                    : 'Belum bayar',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: aktif == null
-                                      ? const Color(0xFF15803D)
-                                      : aktif.status == StatusBayar.menunggu
-                                          ? const Color(0xFFB45309)
-                                          : const Color(0xFFB91C1C),
+                                  color: aktif.status == StatusBayar.menunggu
+                                      ? const Color(0xFFB45309)
+                                      : const Color(0xFFB91C1C),
                                 ),
                               ),
                             ),
@@ -322,7 +390,6 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                           const SizedBox(height: 8),
                           _buildDetailRow('Bagian biaya layanan', formatRupiah(bagianLayanan)),
                         ],
-
                       ],
                     ),
                   ),
@@ -402,7 +469,7 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                   ),
                   const SizedBox(height: 14),
                   InkWell(
-                    onTap: aktif == null ? null : _pilihSumberFoto,
+                    onTap: _pilihSumberFoto,
                     borderRadius: BorderRadius.circular(14),
                     child: Container(
                       width: double.infinity,
@@ -444,6 +511,14 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Maks. 5MB • Format JPG/PNG (otomatis dikompres)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF9CA3AF),
                                     ),
                                   ),
                                 ],
@@ -502,9 +577,7 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 24),
                     child: ElevatedButton(
-                      onPressed: aktif == null
-                          ? null
-                          : () async {
+                      onPressed: () async {
                               final foto = _buktiFoto;
                               if (foto == null) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -517,11 +590,21 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                                 return;
                               }
 
-                              // Konversi ke Base64 agar dapat disinkronkan ke Firestore tanpa Storage Blaze
+                              // Konversi ke Base64 dan simpan ke subkoleksi bukti_transfer Firestore
                               final base64String =
                                   await firestoreService.fileToBase64(foto.path);
+                              final buktiId =
+                                  'bkt_${DateTime.now().millisecondsSinceEpoch}_${aktif.id}';
+                              if (base64String.isNotEmpty) {
+                                await firestoreService.simpanBuktiTransfer(
+                                  grupId: state.id,
+                                  buktiId: buktiId,
+                                  base64Data: base64String,
+                                  namaFile: foto.name,
+                                );
+                              }
                               final pathFinal = base64String.isNotEmpty
-                                  ? base64String
+                                  ? buktiId
                                   : foto.path;
 
                               kasStore.ajukanPembayaran(
@@ -530,6 +613,9 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                                 buktiPath: pathFinal,
                                 judulTagihan: tagihanAktif?.judul,
                                 nominal: totalTagihan,
+                                penerimaId: tagihanAktif?.penerimaId,
+                                namaPenerima: tagihanAktif?.namaPenerima,
+                                sumberDana: tagihanAktif?.sumberDana,
                               );
                               if (mounted) {
                                 setState(() => _buktiFoto = null);
@@ -555,8 +641,12 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                       ),
                       child: Text(
                         bisaKirim
-                            ? 'Tandai sudah bayar'
-                            : 'Unggah bukti dulu untuk mengirim',
+                            ? (sudahAdaBuktiMenunggu
+                                ? 'Ganti bukti & kirim ulang'
+                                : 'Tandai sudah bayar')
+                            : (sudahAdaBuktiMenunggu
+                                ? 'Bukti sudah terkirim (Menunggu verifikasi)'
+                                : 'Unggah bukti dulu untuk mengirim'),
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -564,6 +654,7 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                       ),
                     ),
                   ),
+                  ], // end else aktif != null
                 ],
               ),
             ),

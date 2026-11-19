@@ -540,20 +540,32 @@ class _HomeScreenState extends State<HomeScreen> {
                             tooltip: 'Riwayat Transaksi',
                             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RiwayatScreen())),
                           ),
-                          if (state.daftarKonfirmasi.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            _buildTopCircleButton(
-                              icon: Icons.verified_user_rounded,
-                              tooltip: 'Verifikasi Pembayaran',
-                              iconColor: const Color(0xFFB45309),
-                              bgColor: const Color(0xFFFEF3C7),
-                              badgeCount: state.daftarKonfirmasi.length,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const KonfirmasiPembayaranScreen()),
-                              ),
-                            ),
-                          ],
+                          Builder(
+                            builder: (context) {
+                              final antreanVerifikasi = state.daftarKonfirmasi
+                                  .where((k) => kasStore.bisaVerifikasiKonfirmasi(k))
+                                  .toList();
+                              if (antreanVerifikasi.isEmpty) return const SizedBox.shrink();
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(width: 8),
+                                  _buildTopCircleButton(
+                                    icon: Icons.verified_user_rounded,
+                                    tooltip: 'Verifikasi Pembayaran (${antreanVerifikasi.length})',
+                                    iconColor: const Color(0xFFB45309),
+                                    bgColor: const Color(0xFFFEF3C7),
+                                    badgeCount: antreanVerifikasi.length,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const KonfirmasiPembayaranScreen()),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ],
@@ -659,7 +671,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                             ),
-                            if (state.tipeGrup == 'kasResmi')
+                            if (state.tipeGrup == 'kasResmi' && kasStore.isBendahara(state))
                               InkWell(
                                 onTap: () => tampilkanDialogSetoran(context, state),
                                 borderRadius: BorderRadius.circular(12),
@@ -731,13 +743,27 @@ class _HomeScreenState extends State<HomeScreen> {
                         iconColor: Colors.white,
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BuatTagihanScreen())),
                       ),
-                      _buildQuickActionCircle(
-                        icon: Icons.add_card_rounded,
-                        label: 'Setor Kas',
-                        bgColor: const Color(0xFFDCFCE7),
-                        iconColor: _primaryGreen,
-                        onTap: () => tampilkanDialogSetoran(context, state),
-                      ),
+                      if (kasStore.isBendahara(state))
+                        _buildQuickActionCircle(
+                          icon: Icons.add_card_rounded,
+                          label: 'Setor Kas',
+                          bgColor: const Color(0xFFDCFCE7),
+                          iconColor: _primaryGreen,
+                          onTap: () => tampilkanDialogSetoran(context, state),
+                        )
+                      else
+                        _buildQuickActionCircle(
+                          icon: Icons.payment_rounded,
+                          label: 'Bayar',
+                          bgColor: const Color(0xFFDCFCE7),
+                          iconColor: _primaryGreen,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BayarTagihanScreen(),
+                            ),
+                          ),
+                        ),
                       _buildQuickActionCircle(
                         icon: Icons.qr_code_2_rounded,
                         label: 'Kode / QR',
@@ -839,7 +865,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         final a = state.anggota[idx - 1];
                         final isLunas = a.status == StatusBayar.lunas;
                         final isMenunggu = a.status == StatusBayar.menunggu;
-                        final isBelum = a.status == StatusBayar.belum;
+                        final isBelum = a.status == StatusBayar.belum || a.tagihan > 0;
+                        final isBebas = !isLunas && !isMenunggu && !isBelum;
                         final namaSingkat = a.nama.split(' ').first;
 
                         return Padding(
@@ -879,26 +906,35 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                       ),
                                     ),
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      child: Container(
-                                        width: 16,
-                                        height: 16,
-                                        decoration: BoxDecoration(
-                                          color: isLunas
-                                              ? const Color(0xFF16A34A)
-                                              : (isMenunggu
-                                                  ? const Color(0xFFF59E0B)
-                                                  : (isBelum ? const Color(0xFFDC2626) : const Color(0xFF94A3B8))),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: Colors.white, width: 2),
+                                    if (!isBebas)
+                                      Positioned(
+                                        bottom: 0,
+                                        right: 0,
+                                        child: Container(
+                                          width: 16,
+                                          height: 16,
+                                          decoration: BoxDecoration(
+                                            color: isLunas
+                                                ? const Color(0xFF16A34A)
+                                                : (isMenunggu
+                                                    ? const Color(0xFFF59E0B)
+                                                    : const Color(0xFFDC2626)),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: Colors.white, width: 2),
+                                          ),
+                                          child: Center(
+                                            child: Icon(
+                                              isLunas
+                                                  ? Icons.check
+                                                  : (isMenunggu
+                                                      ? Icons.hourglass_top_rounded
+                                                      : Icons.priority_high_rounded),
+                                              size: isMenunggu ? 8 : 9,
+                                              color: Colors.white,
+                                            ),
+                                          ),
                                         ),
-                                        child: isLunas
-                                            ? const Icon(Icons.check, size: 10, color: Colors.white)
-                                            : null,
                                       ),
-                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 6),
@@ -910,6 +946,31 @@ class _HomeScreenState extends State<HomeScreen> {
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _darkBg),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                SizedBox(
+                                  width: 58,
+                                  child: Text(
+                                    isLunas
+                                        ? 'Lunas'
+                                        : (isMenunggu
+                                            ? 'Menunggu'
+                                            : (isBelum ? formatRupiah(a.tagihan) : 'Bebas')),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                      color: isLunas
+                                          ? const Color(0xFF16A34A)
+                                          : (isMenunggu
+                                              ? const Color(0xFFD97706)
+                                              : (isBelum
+                                                  ? const Color(0xFFDC2626)
+                                                  : const Color(0xFF64748B))),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -959,7 +1020,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      if (kasStore.tagihanSaya().isNotEmpty)
+                      if (kasStore.tagihanSaya().any((item) => item.status == StatusBayar.belum))
                         GestureDetector(
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BayarTagihanScreen())),
                           child: const Text(
@@ -1366,24 +1427,53 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BayarTagihanScreen())),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryGreen,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          if (isMenunggu)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDE68A)),
               ),
-              icon: const Icon(Icons.upload_file_rounded, size: 16),
-              label: Text(
-                isMenunggu ? 'Lihat / Ganti Bukti Bayar' : 'Bayar Sekarang',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.hourglass_top_rounded, size: 16, color: Color(0xFFB45309)),
+                  SizedBox(width: 8),
+                  Text(
+                    'Menunggu Verifikasi Penerima',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFB45309),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BayarTagihanScreen()),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryGreen,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.upload_file_rounded, size: 16),
+                label: const Text(
+                  'Bayar Sekarang',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -1439,21 +1529,47 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          if (isMenunggu)
-            ElevatedButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const KonfirmasiPembayaranScreen()),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFEF3C7),
-                foregroundColor: const Color(0xFFB45309),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('Verifikasi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-            )
+          if (isMenunggu) ...[
+            Builder(
+              builder: (context) {
+                final state = kasStore.grupAktif;
+                final myUid = kasStore.currentUserUid;
+                final isMeBendahara = state.bendahara.toLowerCase() == kasStore.currentUserNama.toLowerCase() ||
+                    (myUid.isNotEmpty && state.bendaharaUid == myUid);
+                final me = kasStore.currentAnggota;
+                final isPenerima = item.pembayarId != me?.id && (item.penerimaId == me?.id || isMeBendahara);
+
+                if (isPenerima) {
+                  return ElevatedButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const KonfirmasiPembayaranScreen()),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFEF3C7),
+                      foregroundColor: const Color(0xFFB45309),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Verifikasi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  );
+                }
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Menunggu',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB45309)),
+                  ),
+                );
+              },
+            ),
+          ]
           else
             OutlinedButton.icon(
               onPressed: () {

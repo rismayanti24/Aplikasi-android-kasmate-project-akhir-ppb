@@ -42,7 +42,7 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
       List<NotifikasiItem> items) {
     final Map<String, List<NotifikasiItem>> groups = {};
     for (final item in items) {
-      final key = item.kelompokWaktu.isNotEmpty ? item.kelompokWaktu : 'Lainnya';
+      final key = item.kelompokWaktuDinamis;
       groups.putIfAbsent(key, () => []).add(item);
     }
     return groups;
@@ -242,8 +242,15 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
     final iconColor = _getColorForType(item.tipe);
     final iconBg = _getBgColorForType(item.tipe);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+    return InkWell(
+      onTap: () {
+        if (!item.isDibaca) {
+          kasStore.tandaiNotifikasiDibaca(item.id);
+        }
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: item.isDibaca ? Colors.white : const Color(0xFFF0FDF4),
@@ -325,7 +332,7 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      item.waktu,
+                      item.waktuDinamis,
                       style: const TextStyle(
                         fontSize: 11,
                         color: Color(0xFF9CA3AF),
@@ -367,38 +374,82 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
                         ),
                       )
                     else if (item.tipe == TipeNotifikasi.tagihanBaru)
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const BayarTagihanScreen(),
+                      Builder(
+                        builder: (context) {
+                          final me = kasStore.currentAnggota;
+                          final isMenunggu = me?.status == StatusBayar.menunggu;
+                          final isBelum = me != null && me.status == StatusBayar.belum && me.tagihan > 0;
+
+                          if (isMenunggu) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Menunggu',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (!isBelum) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Lunas',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF15803D),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const BayarTagihanScreen(),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Bayar',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: _primaryGreen,
+                                    ),
+                                  ),
+                                  SizedBox(width: 2),
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    size: 16,
+                                    color: _primaryGreen,
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
-                        borderRadius: BorderRadius.circular(6),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          child: Row(
-                            children: [
-                              Text(
-                                'Bayar',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: _primaryGreen,
-                                ),
-                              ),
-                              SizedBox(width: 2),
-                              Icon(
-                                Icons.chevron_right_rounded,
-                                size: 16,
-                                color: _primaryGreen,
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
                   ],
                 ),
@@ -407,7 +458,8 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildEmptyState() {

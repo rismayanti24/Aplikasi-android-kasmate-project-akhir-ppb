@@ -4,7 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import '../data/kas_store.dart';
 
 class StatistikScreen extends StatefulWidget {
-  const StatistikScreen({super.key});
+  final VoidCallback? onBack;
+  const StatistikScreen({super.key, this.onBack});
 
   @override
   State<StatistikScreen> createState() => _StatistikScreenState();
@@ -48,14 +49,116 @@ class _StatistikScreenState extends State<StatistikScreen> {
     return labels;
   }
 
-  // Data kategori riil tanpa dummy baseline
-  List<_KategoriData> _hitungKategori(GrupKas grup) {
+  DateTime? _parseTanggal(TagihanKas t) {
+    if (t.jatuhTempo != null) return t.jatuhTempo;
+    final s = t.tanggal.trim();
+    if (s.isEmpty) return null;
+
+    final iso = DateTime.tryParse(s);
+    if (iso != null) return iso;
+
+    final lower = s.toLowerCase();
+    if (lower.contains('bulan ini') || lower.contains('hari ini')) {
+      return DateTime.now();
+    }
+    if (lower.contains('kemarin')) {
+      return DateTime.now().subtract(const Duration(days: 1));
+    }
+
+    final parts = s.split(' ');
+    if (parts.length >= 3) {
+      final day = int.tryParse(parts[0]);
+      final year = int.tryParse(parts[2].replaceAll(',', ''));
+      final monthStr = parts[1].toLowerCase();
+
+      int? month;
+      const monthMap = {
+        'jan': 1,
+        'feb': 2,
+        'mar': 3,
+        'apr': 4,
+        'mei': 5,
+        'may': 5,
+        'jun': 6,
+        'juni': 6,
+        'jul': 7,
+        'agu': 8,
+        'ags': 8,
+        'agt': 8,
+        'sep': 9,
+        'okt': 10,
+        'oct': 10,
+        'nov': 11,
+        'des': 12,
+        'dec': 12,
+      };
+
+      for (final entry in monthMap.entries) {
+        if (monthStr.startsWith(entry.key)) {
+          month = entry.value;
+          break;
+        }
+      }
+
+      if (day != null && month != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
+    return null;
+  }
+
+  List<TagihanKas> _filterTagihanPeriode(List<TagihanKas> list) {
+    final now = DateTime.now();
+    if (_selectedPeriode == 'Bulan Ini') {
+      return list.where((t) {
+        final dt = _parseTanggal(t);
+        if (dt == null) return true;
+        return dt.year == now.year && dt.month == now.month;
+      }).toList();
+    } else if (_selectedPeriode == 'Bulan Lalu') {
+      final lastMonth = DateTime(now.year, now.month - 1, 1);
+      return list.where((t) {
+        final dt = _parseTanggal(t);
+        if (dt == null) return false;
+        return dt.year == lastMonth.year && dt.month == lastMonth.month;
+      }).toList();
+    } else {
+      // 6 Bulan Terakhir
+      final sixMonthsAgo = DateTime(now.year, now.month - 5, 1);
+      return list.where((t) {
+        final dt = _parseTanggal(t);
+        if (dt == null) return true;
+        return dt.isAfter(sixMonthsAgo) || dt.isAtSameMomentAs(sixMonthsAgo);
+      }).toList();
+    }
+  }
+
+  int _hitungTotalPengeluaranPeriode(GrupKas g, List<TagihanKas> filteredTagihan) {
+    final sumFiltered = filteredTagihan.fold<int>(0, (sum, t) => sum + t.total);
+    if (_selectedPeriode == 'Bulan Ini' || _selectedPeriode == '6 Bulan Terakhir') {
+      return sumFiltered > 0 ? sumFiltered : g.pengeluaran;
+    }
+    return sumFiltered;
+  }
+
+  int _hitungTotalPemasukanPeriode(GrupKas g) {
+    final lunasList = g.daftarRiwayatPembayaran.where((r) => r.status.toLowerCase() == 'lunas');
+    final sumLunas = lunasList.fold<int>(0, (sum, r) => sum + r.nominal);
+    return sumLunas > 0 ? sumLunas : g.pemasukan;
+  }
+
+  // Data kategori riil dengan validasi fallback data transaksi riil (Poin 42)
+  List<_KategoriData> _hitungKategori(
+    GrupKas grup,
+    List<TagihanKas> tagihanList,
+    int totalPengeluaran,
+  ) {
     int utilitas = 0;
     int belanja = 0;
     int makanan = 0;
     int lainnya = 0;
 
-    for (final t in grup.daftarTagihan) {
+    for (final t in tagihanList) {
       final j = t.judul.toLowerCase();
       if (j.contains('wifi') ||
           j.contains('wi-fi') ||
@@ -79,6 +182,11 @@ class _StatistikScreenState extends State<StatistikScreen> {
       } else {
         lainnya += t.total;
       }
+    }
+
+    // Fallback stabilitas data: jika rincian tagihan belum sinkron tapi ada catatan pengeluaran kas
+    if (tagihanList.isEmpty && totalPengeluaran > 0) {
+      lainnya = totalPengeluaran;
     }
 
     final total = utilitas + belanja + makanan + lainnya;
@@ -126,10 +234,17 @@ class _StatistikScreenState extends State<StatistikScreen> {
 
       int monthTotal = 0;
       for (final t in grup.daftarTagihan) {
-        final tgl = t.tanggal.toLowerCase();
-        if (tgl.contains(monthName) &&
-            (tgl.contains(yearStr) || tgl.contains(yearStr.substring(2)))) {
-          monthTotal += t.total;
+        final dt = _parseTanggal(t);
+        if (dt != null) {
+          if (dt.year == monthDate.year && dt.month == monthDate.month) {
+            monthTotal += t.total;
+          }
+        } else {
+          final tgl = t.tanggal.toLowerCase();
+          if (tgl.contains(monthName) &&
+              (tgl.contains(yearStr) || tgl.contains(yearStr.substring(2)))) {
+            monthTotal += t.total;
+          }
         }
       }
 
@@ -148,7 +263,10 @@ class _StatistikScreenState extends State<StatistikScreen> {
       valueListenable: kasStore,
       builder: (context, rootState, _) {
         final g = rootState.grupAktif;
-        final kategoriList = _hitungKategori(g);
+        final filteredTagihan = _filterTagihanPeriode(g.daftarTagihan);
+        final totalPengeluaranPeriode = _hitungTotalPengeluaranPeriode(g, filteredTagihan);
+        final totalPemasukanPeriode = _hitungTotalPemasukanPeriode(g);
+        final kategoriList = _hitungKategori(g, filteredTagihan, totalPengeluaranPeriode);
         final monthlySpending = _getMonthlySpending(g);
         final bulanLabels = _getBulanLabels();
         final totalKategori =
@@ -159,7 +277,6 @@ class _StatistikScreenState extends State<StatistikScreen> {
               )
             : null;
 
-        final totalPengeluaranBulanIni = g.pengeluaran;
         final sumSpending = monthlySpending.reduce((a, b) => a + b);
         final rataRata = monthlySpending.isNotEmpty
             ? (sumSpending / monthlySpending.length * 1000).round()
@@ -170,6 +287,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
         final chartMaxY = maxSpending > 0
             ? (maxSpending * 1.3).ceilToDouble()
             : 100.0;
+        final gridInterval = (chartMaxY / 4).clamp(10.0, double.infinity).ceilToDouble();
 
         return Scaffold(
           backgroundColor: const Color(0xFFF8FAFC),
@@ -178,21 +296,30 @@ class _StatistikScreenState extends State<StatistikScreen> {
             elevation: 0,
             scrolledUnderElevation: 0,
             centerTitle: true,
-            leading: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: InkWell(
-                onTap: () => Navigator.pop(context),
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: const Icon(Icons.arrow_back_rounded, color: _darkBg, size: 20),
-                ),
-              ),
-            ),
+            automaticallyImplyLeading: false,
+            leading: (widget.onBack != null || Navigator.canPop(context))
+                ? Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: InkWell(
+                      onTap: () {
+                        if (widget.onBack != null) {
+                          widget.onBack!();
+                        } else if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Icon(Icons.arrow_back_rounded, color: _darkBg, size: 20),
+                      ),
+                    ),
+                  )
+                : null,
             title: const Text(
               'Statistik Pengeluaran',
               style: TextStyle(
@@ -307,7 +434,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          formatRupiah(totalPengeluaranBulanIni),
+                          formatRupiah(totalPengeluaranPeriode),
                           style: const TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.w800,
@@ -317,15 +444,111 @@ class _StatistikScreenState extends State<StatistikScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Total pengeluaran tercatat di ${g.namaGrup}',
+                          'Total pengeluaran (${_selectedPeriode.toLowerCase()}) di ${g.namaGrup}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.white.withValues(alpha: 0.8),
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 16),
 
-                        // Bottom Metric Badges Inside the Hero Card
+                        // Sub Metric Badges: Row 1 (Pemasukan Kas & Saldo Kas)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF6EE7B7),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.arrow_downward_rounded, size: 14, color: _primaryGreen),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Pemasukan Kas',
+                                            style: TextStyle(fontSize: 10, color: Colors.white70),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            formatRupiah(totalPemasukanPeriode),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF93C5FD),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.account_balance_wallet_outlined, size: 14, color: Color(0xFF1E3A8A)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Saldo Kas Grup',
+                                            style: TextStyle(fontSize: 10, color: Colors.white70),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            formatRupiah(g.saldo),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Sub Metric Badges: Row 2 (Rata-rata/Bln & Top Kategori)
                         Row(
                           children: [
                             Expanded(
@@ -502,7 +725,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
                                     showTitles: true,
                                     reservedSize: 42,
                                     getTitlesWidget: (value, meta) {
-                                      if (value % 200 == 0 && value > 0) {
+                                      if (value > 0 && (value % gridInterval).abs() < 1) {
                                         return Text(
                                           '${value.toInt()}k',
                                           style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
@@ -539,7 +762,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
                               gridData: FlGridData(
                                 show: true,
                                 drawVerticalLine: false,
-                                horizontalInterval: 200,
+                                horizontalInterval: gridInterval,
                                 getDrawingHorizontalLine: (value) => const FlLine(
                                   color: Color(0xFFF1F5F9),
                                   strokeWidth: 1,

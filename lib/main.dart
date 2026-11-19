@@ -89,6 +89,9 @@ class AuthGate extends StatelessWidget {
               }
               if (profilSnap.hasData && profilSnap.data != null) {
                 profilNotifier.value = profilSnap.data!;
+                if (kasStore.value.daftarGrup.isEmpty) {
+                  kasStore.muatUlangGrupDariFirestore(user.uid);
+                }
               } else if (user.displayName != null &&
                   user.displayName!.isNotEmpty &&
                   profilNotifier.value.id.isEmpty) {
@@ -99,6 +102,9 @@ class AuthGate extends StatelessWidget {
                   bank: '',
                   noRekening: '',
                 );
+                if (kasStore.value.daftarGrup.isEmpty) {
+                  kasStore.muatUlangGrupDariFirestore(user.uid);
+                }
               }
               return const MainNavigationScreen();
             },

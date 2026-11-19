@@ -3,15 +3,16 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../data/kas_store.dart';
+import '../services/firestore_service.dart';
 import '../widgets/success_dialog.dart';
 
 class KonfirmasiPembayaranScreen extends StatelessWidget {
   final bool showBackButton;
   const KonfirmasiPembayaranScreen({super.key, this.showBackButton = true});
 
-  Widget _buildPlaceholder(String namaFile) {
+  Widget _buildPlaceholder(String namaFile, {double? height}) {
     return Container(
-      height: 180,
+      height: height ?? 165,
       width: double.infinity,
       decoration: BoxDecoration(
         color: const Color(0xFFF3F4F6),
@@ -22,55 +23,148 @@ class KonfirmasiPembayaranScreen extends StatelessWidget {
         children: [
           const Icon(
             Icons.receipt_long_outlined,
-            size: 40,
+            size: 36,
             color: Color(0xFF6B7280),
           ),
           const SizedBox(height: 8),
-          Text(namaFile.isEmpty ? 'Bukti transfer' : namaFile),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              namaFile.isEmpty ? 'Bukti transfer' : namaFile,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBuktiWidget(String buktiPath, String namaFile) {
+  Widget _buildBuktiWidget(
+    String grupId,
+    String buktiPath,
+    String namaFile, {
+    double? height,
+    BoxFit fit = BoxFit.contain,
+  }) {
     if (buktiPath.isEmpty) {
-      return _buildPlaceholder(namaFile);
+      return _buildPlaceholder(namaFile, height: height);
     }
 
+    // 1. Jika tersimpan di subkoleksi (ID bkt_...)
+    if (buktiPath.startsWith('bkt_')) {
+      final cached = firestoreService.getBuktiFromCache(grupId, buktiPath);
+      if (cached != null && cached.isNotEmpty) {
+        try {
+          final bytes = base64Decode(cached);
+          return Image.memory(
+            bytes,
+            fit: fit,
+            width: double.infinity,
+            height: height,
+          );
+        } catch (_) {}
+      }
+      return FutureBuilder<String?>(
+        future: firestoreService.getBuktiTransfer(
+          grupId: grupId,
+          buktiId: buktiPath,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Container(
+              height: height ?? 165,
+              width: double.infinity,
+              color: const Color(0xFFF3F4F6),
+              alignment: Alignment.center,
+              child: const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF00B074),
+                ),
+              ),
+            );
+          }
+          final b64 = snapshot.data;
+          if (b64 != null && b64.isNotEmpty) {
+            try {
+              final bytes = base64Decode(b64);
+              return Image.memory(
+                bytes,
+                fit: fit,
+                width: double.infinity,
+                height: height,
+              );
+            } catch (_) {}
+          }
+          return _buildPlaceholder(namaFile, height: height);
+        },
+      );
+    }
+
+    // 2. Jika base64 data URI
     if (buktiPath.startsWith('data:image')) {
       try {
         final base64Str = buktiPath.split(',').last;
-        return Image.memory(base64Decode(base64Str), fit: BoxFit.contain);
+        return Image.memory(
+          base64Decode(base64Str),
+          fit: fit,
+          width: double.infinity,
+          height: height,
+        );
       } catch (_) {}
     }
 
-    if (!buktiPath.startsWith('/') &&
-        !buktiPath.contains(':\\') &&
-        !buktiPath.startsWith('http://') &&
-        !buktiPath.startsWith('https://')) {
-      try {
-        final bytes = base64Decode(buktiPath);
-        return Image.memory(bytes, fit: BoxFit.contain);
-      } catch (_) {}
-    }
-
+    // 3. Jika URL jaringan
     if (buktiPath.startsWith('http://') || buktiPath.startsWith('https://')) {
-      return Image.network(buktiPath, fit: BoxFit.contain);
+      return Image.network(
+        buktiPath,
+        fit: fit,
+        width: double.infinity,
+        height: height,
+        errorBuilder: (_, __, ___) =>
+            _buildPlaceholder(namaFile, height: height),
+      );
     }
 
+    // 4. Jika file lokal di perangkat
     if (!kIsWeb) {
       try {
         final file = File(buktiPath);
         if (file.existsSync()) {
-          return Image.file(file, fit: BoxFit.contain);
+          return Image.file(
+            file,
+            fit: fit,
+            width: double.infinity,
+            height: height,
+          );
         }
       } catch (_) {}
     }
 
-    return _buildPlaceholder(namaFile);
+    // 5. Fallback jika base64 polos langsung
+    if (!buktiPath.startsWith('/') && !buktiPath.contains(':\\')) {
+      try {
+        final bytes = base64Decode(buktiPath);
+        return Image.memory(
+          bytes,
+          fit: fit,
+          width: double.infinity,
+          height: height,
+        );
+      } catch (_) {}
+    }
+
+    return _buildPlaceholder(namaFile, height: height);
   }
 
-  void _lihatBuktiFull(BuildContext context, KonfirmasiItem item) {
+  void _lihatBuktiFull(BuildContext context, KonfirmasiItem item, String grupId) {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -91,7 +185,12 @@ class KonfirmasiPembayaranScreen extends StatelessWidget {
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: _buildBuktiWidget(item.buktiPath, item.namaFileBukti),
+                child: _buildBuktiWidget(
+                  grupId,
+                  item.buktiPath,
+                  item.namaFileBukti,
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(height: 12),
               TextButton(
@@ -213,71 +312,44 @@ class KonfirmasiPembayaranScreen extends StatelessWidget {
                             const SizedBox(height: 14),
                             // Preview Bukti Transfer Asli (Bisa diklik untuk zoom)
                             GestureDetector(
-                              onTap: () => _lihatBuktiFull(context, item),
+                              onTap: () => _lihatBuktiFull(
+                                context,
+                                item,
+                                rootState.grupAktif.id,
+                              ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: item.buktiPath.isNotEmpty
-                                    ? Stack(
-                                        alignment: Alignment.bottomRight,
-                                        children: [
-                                          kIsWeb
-                                              ? Image.network(
-                                                  item.buktiPath,
-                                                  width: double.infinity,
-                                                  height: 165,
-                                                  fit: BoxFit.cover,
-                                                )
-                                              : Image.file(
-                                                  File(item.buktiPath),
-                                                  width: double.infinity,
-                                                  height: 165,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                          Container(
-                                            margin: const EdgeInsets.all(8),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black54,
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: const Text(
-                                              'Ketuk untuk perbesar',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : Container(
-                                        width: double.infinity,
-                                        height: 140,
-                                        color: const Color(0xFFF3F4F6),
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            const Icon(
-                                              Icons.receipt_outlined,
-                                              size: 32,
-                                              color: Color(0xFF9CA3AF),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              item.namaFileBukti,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Color(0xFF6B7280),
-                                              ),
-                                            ),
-                                          ],
+                                child: Stack(
+                                  alignment: Alignment.bottomRight,
+                                  children: [
+                                    _buildBuktiWidget(
+                                      rootState.grupAktif.id,
+                                      item.buktiPath,
+                                      item.namaFileBukti,
+                                      height: 165,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    Container(
+                                      margin: const EdgeInsets.all(8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        'Ketuk untuk perbesar',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
                                         ),
                                       ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 14),
@@ -288,78 +360,115 @@ class KonfirmasiPembayaranScreen extends StatelessWidget {
                             const SizedBox(height: 8),
                             _buildMetaRow('Waktu unggah', item.waktuUnggah),
                             const SizedBox(height: 18),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      kasStore.verifikasiPembayaran(
-                                        item.id,
-                                        diterima: false,
-                                      );
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Pembayaran ${item.namaAnggota} ditolak & dicatat di riwayat',
+                            if (kasStore.bisaVerifikasiKonfirmasi(item))
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        kasStore.verifikasiPembayaran(
+                                          item.id,
+                                          diterima: false,
+                                        );
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Pembayaran ${item.namaAnggota} ditolak & dicatat di riwayat',
+                                            ),
                                           ),
+                                        );
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize:
+                                            const Size(double.infinity, 46),
+                                        foregroundColor: const Color(0xFFB91C1C),
+                                        side: const BorderSide(
+                                          color: Color(0xFFFECACA),
                                         ),
-                                      );
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      minimumSize:
-                                          const Size(double.infinity, 46),
-                                      foregroundColor: const Color(0xFFB91C1C),
-                                      side: const BorderSide(
-                                        color: Color(0xFFFECACA),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
                                       ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Tolak',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                      child: const Text(
+                                        'Tolak',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      kasStore.verifikasiPembayaran(
-                                        item.id,
-                                        diterima: true,
-                                      );
-                                      KasSuccessDialog.show(
-                                        context,
-                                        title: 'Pembayaran Lunas!',
-                                        message:
-                                            '${item.namaAnggota} dikonfirmasi LUNAS! Saldo kas bertambah.',
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF074E3B),
-                                      foregroundColor: Colors.white,
-                                      minimumSize:
-                                          const Size(double.infinity, 46),
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        kasStore.verifikasiPembayaran(
+                                          item.id,
+                                          diterima: true,
+                                        );
+                                        KasSuccessDialog.show(
+                                          context,
+                                          title: 'Pembayaran Lunas!',
+                                          message: item.sumberDana == 'Dana pribadi'
+                                              ? '${item.namaAnggota} dikonfirmasi LUNAS! Pembayaran talangan pribadi telah diterima.'
+                                              : '${item.namaAnggota} dikonfirmasi LUNAS! Saldo kas bertambah.',
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF074E3B),
+                                        foregroundColor: Colors.white,
+                                        minimumSize:
+                                            const Size(double.infinity, 46),
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
                                       ),
-                                    ),
-                                    child: const Text(
-                                      'Konfirmasi lunas',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                      child: const Text(
+                                        'Konfirmasi lunas',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),
+                                ],
+                              )
+                            else
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                              ],
-                            ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF7ED),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFFED7AA),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.hourglass_top_rounded,
+                                      size: 20,
+                                      color: Color(0xFFEA580C),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Menunggu verifikasi oleh ${item.namaPenerima?.isNotEmpty == true ? item.namaPenerima : 'Bendahara'}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFFEA580C),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
                       );

@@ -1,8 +1,9 @@
+
 import 'scan_struk_screen.dart';
 import '../utils/hitung_tagihan.dart';
-import '../utils/format.dart' show CurrencyInputFormatter, parseNominal;
 import 'package:flutter/material.dart';
 import '../data/kas_store.dart';
+import '../utils/format.dart' show CurrencyInputFormatter, parseNominal;
 import 'buat_grup_screen.dart';
 
 class BuatTagihanScreen extends StatefulWidget {
@@ -25,6 +26,16 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
   int _bagiKeIndex = 0;
   String? _penalangiId;
   bool _pakaiPajak = false;
+  DateTime _jatuhTempo = DateTime.now().add(const Duration(days: 7));
+
+  String _namaBulan(int month) {
+    const bulan = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    if (month >= 1 && month <= 12) return bulan[month - 1];
+    return '';
+  }
 
   final List<ItemBelanja> _items = [];
   final Set<String> _anggotaTerpilih = {};
@@ -42,7 +53,19 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
       _anggotaTerpilih.add(a.id);
     }
     final me = kasStore.currentAnggota;
-    _penalangiId = me?.id ?? (grup.anggota.isNotEmpty ? grup.anggota.first.id : null);
+    final myUid = kasStore.currentUserUid;
+    final matchingAnggota = me ??
+        grup.anggota.cast<AnggotaKas?>().firstWhere(
+              (a) =>
+                  a != null &&
+                  ((myUid.isNotEmpty && (a.uid == myUid || a.id == myUid)) ||
+                      (kasStore.currentUserNama != 'Pengguna' &&
+                          a.nama.toLowerCase() ==
+                              kasStore.currentUserNama.toLowerCase())),
+              orElse: () => null,
+            );
+    _penalangiId = matchingAnggota?.id ??
+        (grup.anggota.isNotEmpty ? grup.anggota.first.id : null);
   }
 
   @override
@@ -57,7 +80,7 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
   }
 
   int _parseHarga(String text) {
-    return int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    return parseNominal(text);
   }
 
   List<ItemBelanja> get _semuaItemAktif {
@@ -195,6 +218,19 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
 
     final sumberDana = _sumberDanaIndex == 0 ? 'Kas grup' : 'Dana pribadi';
 
+    // Validasi saldo kas jika mengambil dari kas bersama
+    if (sumberDana == 'Kas grup' && _total > kasStore.grupAktif.saldo) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Saldo kas tidak cukup! Saldo saat ini: ${formatRupiah(kasStore.grupAktif.saldo)}, total pengeluaran: ${formatRupiah(_total)}',
+          ),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
     final sukses = kasStore.tambahTagihan(
       judul: judulFinal,
       sumberDana: sumberDana,
@@ -205,6 +241,7 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
       pajakPersen: rincian.pajakPersen,
       diskon: rincian.diskon,
       biayaLayanan: rincian.biayaLayanan,
+      jatuhTempo: _jatuhTempo,
     );
 
     if (!sukses) {
@@ -261,8 +298,9 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
       );
     }
 
-    final semuaAnggota = kasStore.grupAktif.anggota;
-    final isPatungan = kasStore.grupAktif.tipeGrup == 'patungan';
+    final grup = kasStore.grupAktif;
+    final semuaAnggota = grup.anggota;
+    final isPatungan = grup.tipeGrup == 'patungan';
     final me = kasStore.currentAnggota;
 
     return Scaffold(
@@ -325,6 +363,61 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
+                'Batas Pembayaran (Jatuh Tempo)',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF374151),
+                ),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _jatuhTempo,
+                    firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (picked != null) {
+                    setState(() => _jatuhTempo = picked);
+                  }
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event_note_rounded, size: 20, color: _primaryGreen),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${_jatuhTempo.day} ${_namaBulan(_jatuhTempo.month)} ${_jatuhTempo.year}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const Spacer(),
+                      const Text(
+                        'Pilih Tanggal',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
                 'Sumber dana',
                 style: TextStyle(
                   fontSize: 13,
@@ -336,7 +429,7 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
               if (!isPatungan) ...[
                 _buildSumberDanaOption(
                   title: 'Ambil dari Kas Bersama',
-                  subtitle: 'Bendahara yang bayar pakai uang kas',
+                  subtitle: 'Sisa saldo: ${formatRupiah(grup.saldo)} • Pakai uang kas',
                   icon: Icons.account_balance_wallet_outlined,
                   isSelected: _sumberDanaIndex == 0,
                   onTap: () => setState(() => _sumberDanaIndex = 0),
@@ -350,6 +443,29 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
                 isSelected: _sumberDanaIndex == 1,
                 onTap: () => setState(() => _sumberDanaIndex = 1),
               ),
+              if (!isPatungan && _sumberDanaIndex == 0 && _total > grup.saldo && _total > 0) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 18, color: Color(0xFFDC2626)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Saldo kas tidak cukup (${formatRupiah(grup.saldo)}). Total tagihan ${formatRupiah(_total)}. Pilih talangan atau kurangi nominal.',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFFDC2626), fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (isPatungan)
                 const Padding(
                   padding: EdgeInsets.only(top: 6, left: 4),
@@ -377,8 +493,12 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: semuaAnggota.map((anggota) {
-                    final isCurrentUser = me != null &&
-                        (anggota.id == me.id ||
+                    final myUid = kasStore.currentUserUid;
+                    final isCurrentUser = (myUid.isNotEmpty &&
+                            ((anggota.uid != null && anggota.uid == myUid) ||
+                                anggota.id == myUid)) ||
+                        (me != null && anggota.id == me.id) ||
+                        (kasStore.currentUserNama != 'Pengguna' &&
                             anggota.nama.toLowerCase() ==
                                 kasStore.currentUserNama.toLowerCase());
                     final isSelected = _penalangiId == anggota.id;
@@ -495,10 +615,11 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
                           child: TextField(
                             controller: _hargaItemController,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [CurrencyInputFormatter()],
                             onChanged: (_) => setState(() {}),
                             decoration: InputDecoration(
-                              labelText: 'Nominal (Rp)',
-                              hintText: '20000',
+                              labelText: 'Nominal',
+                              hintText: '20.000',
                               prefixText: 'Rp ',
                               filled: true,
                               fillColor: const Color(0xFFFAFAFA),

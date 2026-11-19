@@ -10,12 +10,14 @@ import 'export_laporan_screen.dart';
 import 'login_screen.dart';
 import 'pengaturan_screen.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 
 class ProfilScreen extends StatelessWidget {
   const ProfilScreen({super.key});
 
   void _bukaFormEditProfil(BuildContext context) {
     final profil = profilNotifier.value;
+    final emailUser = authService.currentUser?.email ?? 'Tidak terhubung';
     final namaCtrl = TextEditingController(text: profil.nama);
     final waCtrl = TextEditingController(text: profil.noWa);
     final bankCtrl = TextEditingController(text: profil.bank);
@@ -43,10 +45,25 @@ class ProfilScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Edit profil & rekening bendahara',
+                'Edit Profil & Rekening',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 16),
+              TextField(
+                readOnly: true,
+                controller: TextEditingController(text: emailUser),
+                decoration: InputDecoration(
+                  labelText: 'Email Akun (Tertaut)',
+                  prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                  filled: true,
+                  fillColor: const Color(0xFFF1F5F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: namaCtrl,
                 decoration: const InputDecoration(
@@ -88,21 +105,43 @@ class ProfilScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (!formKey.currentState!.validate()) return;
-                  simpanProfil(
-                    Pengguna(
-                      id: profil.id,
-                      nama: namaCtrl.text.trim(),
-                      noWa: waCtrl.text.trim(),
-                      bank: bankCtrl.text.trim(),
-                      noRekening: rekCtrl.text.trim(),
-                    ),
+                  final uid = profil.id.isNotEmpty
+                      ? profil.id
+                      : (authService.currentUser?.uid ?? '');
+                  final penggunaBaru = Pengguna(
+                    id: uid,
+                    nama: namaCtrl.text.trim(),
+                    noWa: waCtrl.text.trim(),
+                    bank: bankCtrl.text.trim(),
+                    noRekening: rekCtrl.text.trim(),
                   );
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profil berhasil disimpan')),
+
+                  // 1. Simpan ke local state
+                  simpanProfil(penggunaBaru);
+
+                  // 2. Simpan ke Firestore users collection
+                  await firestoreService.simpanProfilUser(penggunaBaru);
+
+                  // 3. Update nama, no WA, bank & no rekening di semua grup kas yang diikuti
+                  await kasStore.perbaruiProfilAnggotaDiSemuaGrup(
+                    uid: penggunaBaru.id,
+                    namaBaru: penggunaBaru.nama,
+                    noWaBaru: penggunaBaru.noWa,
+                    bankBaru: penggunaBaru.bank,
+                    noRekeningBaru: penggunaBaru.noRekening,
                   );
+
+                  if (context.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Profil dan nama grup berhasil diperbarui!'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF074E3B),

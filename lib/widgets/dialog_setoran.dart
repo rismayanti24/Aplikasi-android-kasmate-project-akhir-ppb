@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 import '../data/kas_store.dart';
+import '../utils/format.dart' show CurrencyInputFormatter, parseNominal;
 
 void tampilkanDialogSetoran(BuildContext context, GrupKas grup) {
+  if (!kasStore.isBendahara(grup)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Hanya bendahara yang berhak mencatat setoran kas'),
+        backgroundColor: Color(0xFFDC2626),
+      ),
+    );
+    return;
+  }
+
   final nominalCtrl = TextEditingController();
   final ketCtrl = TextEditingController();
   String namaPenyetor = grup.bendahara;
@@ -94,10 +105,11 @@ void tampilkanDialogSetoran(BuildContext context, GrupKas grup) {
               TextField(
                 controller: nominalCtrl,
                 keyboardType: TextInputType.number,
+                inputFormatters: [CurrencyInputFormatter()],
                 autofocus: true,
                 decoration: InputDecoration(
                   prefixText: 'Rp ',
-                  hintText: '50000',
+                  hintText: '50.000',
                   filled: true,
                   fillColor: const Color(0xFFF9FAFB),
                   border: OutlineInputBorder(
@@ -138,8 +150,7 @@ void tampilkanDialogSetoran(BuildContext context, GrupKas grup) {
           ),
           ElevatedButton(
             onPressed: () {
-              final raw = nominalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-              final nominal = int.tryParse(raw) ?? 0;
+              final nominal = parseNominal(nominalCtrl.text);
               if (nominal <= 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Masukkan nominal setoran valid')),

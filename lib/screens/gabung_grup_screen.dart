@@ -110,9 +110,10 @@ class _GabungGrupScreenState extends State<GabungGrupScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final pesan = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Terjadi kesalahan: $e'),
+            content: Text(pesan),
             backgroundColor: const Color(0xFFB91C1C),
           ),
         );
@@ -134,6 +135,10 @@ class _GabungGrupScreenState extends State<GabungGrupScreen> {
   @override
   Widget build(BuildContext context) {
     final kodeInput = _kodeController.text.trim();
+    final myUid = kasStore.currentUserUid;
+    final isBlacklisted = _grupDitemukan != null &&
+        myUid.isNotEmpty &&
+        _grupDitemukan!.blacklistUids.contains(myUid);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
@@ -224,13 +229,13 @@ class _GabungGrupScreenState extends State<GabungGrupScreen> {
               const SizedBox(height: 16),
 
               // Kartu Status Validasi Real-time Cloud
-              _buildStatusCard(kodeInput),
+              _buildStatusCard(kodeInput, isBlacklisted: isBlacklisted),
 
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
                 child: ElevatedButton(
-                  onPressed: (_grupDitemukan == null || _sedangGabung || _sedangMencari)
+                  onPressed: (_grupDitemukan == null || _sedangGabung || _sedangMencari || isBlacklisted)
                       ? null
                       : _prosesGabung,
                   style: ElevatedButton.styleFrom(
@@ -264,7 +269,7 @@ class _GabungGrupScreenState extends State<GabungGrupScreen> {
     );
   }
 
-  Widget _buildStatusCard(String kodeInput) {
+  Widget _buildStatusCard(String kodeInput, {bool isBlacklisted = false}) {
     if (_sedangMencari) {
       return Container(
         width: double.infinity,
@@ -311,6 +316,35 @@ class _GabungGrupScreenState extends State<GabungGrupScreen> {
               child: Text(
                 'Ketik kode grup atau pindai QR Code di atas',
                 style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isBlacklisted) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFECACA)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.block_rounded, size: 18, color: Color(0xFFB91C1C)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Akses ditolak: Kamu telah dikeluarkan dari grup ini dan tidak dapat bergabung kembali tanpa izin bendahara.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFFB91C1C),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

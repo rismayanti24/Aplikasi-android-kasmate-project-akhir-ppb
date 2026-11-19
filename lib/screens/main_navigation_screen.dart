@@ -16,13 +16,19 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    HomeScreen(),
-    StatistikScreen(),
-    SizedBox.shrink(), // Index 2 dialihkan untuk membuka BuatTagihanScreen
-    NotifikasiScreen(),
-    ProfilScreen(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const HomeScreen(),
+      StatistikScreen(onBack: () => setState(() => _currentIndex = 0)),
+      const SizedBox.shrink(), // Index 2 dialihkan untuk membuka BuatTagihanScreen
+      const NotifikasiScreen(),
+      const ProfilScreen(),
+    ];
+  }
 
   void _onTabTapped(int index) {
     if (index == 2) {

@@ -182,6 +182,105 @@ class DetailGrupScreen extends StatelessWidget {
 
   void _dialogHapusAnggota(
       BuildContext context, AnggotaKas anggota, String grupNama) {
+    if (anggota.tagihan > 0) {
+      // Step 4.1 (Poin 28): Dialog proteksi tunggakan
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Ada Tunggakan Belum Lunas',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${anggota.nama} masih memiliki kewajiban tagihan di grup $grupNama.',
+                style: const TextStyle(color: Color(0xFF475569), fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Sisa Tagihan Belum Dibayar:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF991B1B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatRupiah(anggota.tagihan),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Minta anggota melunasi tagihannya terlebih dahulu sebelum dikeluarkan agar pembukuan kas tetap seimbang.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          actions: [
+            if (anggota.noWa.isNotEmpty)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  kasStore.kirimTagihanWhatsApp(anggota);
+                },
+                icon: const Icon(Icons.chat_outlined, size: 16, color: Color(0xFF10B981)),
+                label: const Text(
+                  'Tagih via WA',
+                  style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                ),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _dialogKonfirmasiHapusPaksa(context, anggota, grupNama);
+              },
+              child: const Text(
+                'Tetap Keluarkan',
+                style: TextStyle(color: Color(0xFFDC2626), fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -191,7 +290,7 @@ class DetailGrupScreen extends StatelessWidget {
           children: [
             Icon(Icons.person_remove_rounded, color: Color(0xFFB91C1C)),
             SizedBox(width: 8),
-            Text('Hapus Anggota?', style: TextStyle(fontWeight: FontWeight.w700)),
+            Text('Keluarkan Anggota dari Grup', style: TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
         content: Text(
@@ -205,23 +304,187 @@ class DetailGrupScreen extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              kasStore.hapusAnggota(anggota.id);
+              final ok = kasStore.hapusAnggota(anggota.id);
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${anggota.nama} dikeluarkan dari grup'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              if (ok) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${anggota.nama} dikeluarkan dari grup'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFB91C1C),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('Hapus'),
+            child: const Text('Keluarkan'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _dialogKonfirmasiHapusPaksa(
+      BuildContext context, AnggotaKas anggota, String grupNama) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: Color(0xFFB91C1C)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Hapus & Ikhlaskan Utang?',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Jika dikeluarkan sekarang, tunggakan ${formatRupiah(anggota.tagihan)} milik "${anggota.nama}" tidak akan dapat ditagih lagi di aplikasi. Lanjutkan pengeluaran?',
+          style: const TextStyle(color: Color(0xFF475569), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Kembali'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final ok = kasStore.hapusAnggota(anggota.id, paksa: true);
+              Navigator.pop(ctx);
+              if (ok) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${anggota.nama} dikeluarkan dari grup'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB91C1C),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Ya, Keluarkan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dialogGantiBendahara(
+      BuildContext context, AnggotaKas target, GrupKas grup) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.swap_horiz_rounded, color: Color(0xFF2563EB)),
+            SizedBox(width: 8),
+            Text('Serahkan Bendahara?', style: TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: Text(
+          'Apakah kamu yakin ingin menyerahkan tanggung jawab bendahara kepada "${target.nama}"?\n\nSetelah ini, peran bendahara akan berpindah dan kamu akan menjadi anggota biasa.',
+          style: const TextStyle(color: Color(0xFF475569)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              kasStore.gantiBendahara(target.id);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Peran bendahara berhasil diserahkan kepada ${target.nama}'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Ya, Serahkan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dialogPilihBendaharaBaru(BuildContext context, GrupKas grup) {
+    final kandidat = grup.anggota.where((a) {
+      final isAnggotaBendahara = a.nama.toLowerCase() == grup.bendahara.toLowerCase() ||
+          (grup.bendaharaUid != null && a.uid == grup.bendaharaUid);
+      return !isAnggotaBendahara;
+    }).toList();
+
+    if (kandidat.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Belum ada anggota lain untuk dijadikan bendahara.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Pilih Bendahara Baru',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Pilih anggota yang akan menggantikan peran bendahara di grup ini:',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 16),
+            ...kandidat.map(
+              (a) => ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: a.avatarColor,
+                  child: Text(
+                    a.nama.isNotEmpty ? a.nama[0].toUpperCase() : '?',
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                  ),
+                ),
+                title: Text(a.nama, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(a.noWa.isNotEmpty ? a.noWa : 'Tanpa no. WA', style: const TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _dialogGantiBendahara(context, a, grup);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -285,6 +548,45 @@ class DetailGrupScreen extends StatelessWidget {
   }
 
   void _dialogKeluarGrup(BuildContext context, GrupKas grup) {
+    if (kasStore.isBendahara(grup) && grup.anggota.length > 1) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Row(
+            children: [
+              Icon(Icons.shield_outlined, color: Color(0xFFDC2626)),
+              SizedBox(width: 8),
+              Text('Tidak Bisa Keluar', style: TextStyle(fontWeight: FontWeight.w700)),
+            ],
+          ),
+          content: const Text(
+            'Kamu adalah bendahara grup ini. Silakan serahkan peran bendahara ke anggota lain terlebih dahulu sebelum keluar.',
+            style: TextStyle(color: Color(0xFF475569)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _dialogPilihBendaharaBaru(context, grup);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Serahkan Bendahara'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -306,16 +608,18 @@ class DetailGrupScreen extends StatelessWidget {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
-              kasStore.keluarDariGrup(grup.id);
-              Navigator.pop(ctx);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Kamu telah keluar dari ${grup.namaGrup}'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+            onPressed: () async {
+              await kasStore.keluarDariGrup(grup.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Kamu telah keluar dari ${grup.namaGrup}'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFB91C1C),
@@ -335,8 +639,7 @@ class DetailGrupScreen extends StatelessWidget {
       valueListenable: kasStore,
       builder: (context, rootState, _) {
         final grup = rootState.grupAktif;
-        final isBendahara = grup.bendahara.toLowerCase() ==
-            kasStore.currentUserNama.toLowerCase();
+        final isBendahara = kasStore.isBendahara(grup);
         final isKasResmi = grup.tipeGrup == 'kasResmi';
 
         return Scaffold(
@@ -570,13 +873,13 @@ class DetailGrupScreen extends StatelessWidget {
                       label: 'Kirim WA',
                       onTap: () => kasStore.bagikanUndanganGrupWhatsApp(grup),
                     ),
-                    if (isKasResmi)
+                    if (isKasResmi && isBendahara)
                       _buildQuickActionCircle(
                         icon: Icons.add_card_rounded,
                         label: 'Setor Kas',
                         onTap: () => tampilkanDialogSetoran(context, grup),
                       )
-                    else
+                    else if (!isKasResmi)
                       _buildQuickActionCircle(
                         icon: Icons.receipt_long_rounded,
                         label: 'Split Bill',
@@ -656,8 +959,12 @@ class DetailGrupScreen extends StatelessWidget {
                     final isCurrent = anggota.nama.toLowerCase() ==
                         kasStore.currentUserNama.toLowerCase();
                     final isAnggotaBendahara = anggota.nama.toLowerCase() ==
-                        grup.bendahara.toLowerCase();
-                    final bool isLunas = anggota.status == StatusBayar.lunas || anggota.tagihan <= 0;
+                        grup.bendahara.toLowerCase() ||
+                        (grup.bendaharaUid != null && anggota.uid == grup.bendaharaUid);
+                    final isMenunggu = anggota.status == StatusBayar.menunggu;
+                    final isLunas = anggota.status == StatusBayar.lunas;
+                    final isAdaTagihan = anggota.tagihan > 0;
+                    final isBebas = !isLunas && !isMenunggu && !isAdaTagihan;
 
                     return Container(
                       padding: const EdgeInsets.all(12),
@@ -690,19 +997,35 @@ class DetailGrupScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: isLunas ? _emerald : const Color(0xFFF59E0B),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
+                              if (!isBebas)
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 15,
+                                    height: 15,
+                                    decoration: BoxDecoration(
+                                      color: isLunas
+                                          ? _emerald
+                                          : (isMenunggu
+                                              ? const Color(0xFFF59E0B)
+                                              : const Color(0xFFDC2626)),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        isLunas
+                                            ? Icons.check
+                                            : (isMenunggu
+                                                ? Icons.hourglass_top_rounded
+                                                : Icons.priority_high_rounded),
+                                        size: isMenunggu ? 8 : 9,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
                             ],
                           ),
                           const SizedBox(width: 12),
@@ -784,19 +1107,37 @@ class DetailGrupScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: isLunas ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                                  color: isLunas
+                                      ? const Color(0xFFDCFCE7)
+                                      : (isMenunggu
+                                          ? const Color(0xFFFEF3C7)
+                                          : (isAdaTagihan
+                                              ? const Color(0xFFFEE2E2)
+                                              : const Color(0xFFF1F5F9))),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  isLunas ? 'Lunas' : formatRupiah(anggota.tagihan),
+                                  isLunas
+                                      ? 'Lunas'
+                                      : (isMenunggu
+                                          ? 'Menunggu'
+                                          : (isAdaTagihan
+                                              ? formatRupiah(anggota.tagihan)
+                                              : 'Bebas')),
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
-                                    color: isLunas ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                                    color: isLunas
+                                        ? const Color(0xFF15803D)
+                                        : (isMenunggu
+                                            ? const Color(0xFFB45309)
+                                            : (isAdaTagihan
+                                                ? const Color(0xFFB91C1C)
+                                                : const Color(0xFF475569))),
                                   ),
                                 ),
                               ),
-                              if (!isLunas && anggota.noWa.isNotEmpty) ...[
+                              if (isAdaTagihan && anggota.noWa.isNotEmpty) ...[
                                 const SizedBox(height: 4),
                                 InkWell(
                                   onTap: () => kasStore.kirimTagihanWhatsApp(anggota),
@@ -822,6 +1163,13 @@ class DetailGrupScreen extends StatelessWidget {
                           if (isBendahara && !isAnggotaBendahara) ...[
                             const SizedBox(width: 4),
                             IconButton(
+                              tooltip: 'Serahkan Bendahara',
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.swap_horiz_rounded, size: 20, color: Color(0xFF2563EB)),
+                              onPressed: () => _dialogGantiBendahara(context, anggota, grup),
+                            ),
+                            IconButton(
+                              tooltip: 'Keluarkan Anggota dari Grup',
                               visualDensity: VisualDensity.compact,
                               icon: const Icon(Icons.remove_circle_outline_rounded, size: 18, color: Color(0xFF94A3B8)),
                               onPressed: () => _dialogHapusAnggota(context, anggota, grup.namaGrup),
@@ -872,6 +1220,27 @@ class DetailGrupScreen extends StatelessWidget {
                           leading: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.swap_horiz_rounded, size: 18, color: Color(0xFF2563EB)),
+                          ),
+                          title: const Text(
+                            'Serahkan Peran Bendahara',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _darkBg),
+                          ),
+                          subtitle: const Text(
+                            'Pilih anggota lain untuk menggantikanmu sebagai bendahara',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                          onTap: () => _dialogPilihBendaharaBaru(context, grup),
+                        ),
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
                               color: const Color(0xFFFEF3C7),
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -909,8 +1278,28 @@ class DetailGrupScreen extends StatelessWidget {
                           trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFFEF4444)),
                           onTap: () => _dialogHapusGrup(context, grup),
                         ),
-                      ],
-                      if (!isBendahara) ...[
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEE2E2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.logout_rounded, size: 18, color: Color(0xFFB91C1C)),
+                          ),
+                          title: const Text(
+                            'Keluar dari Grup',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFFB91C1C)),
+                          ),
+                          subtitle: const Text(
+                            'Serahkan peran bendahara dulu jika ada anggota lain',
+                            style: TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFFEF4444)),
+                          onTap: () => _dialogKeluarGrup(context, grup),
+                        ),
+                      ] else ...[
                         ListTile(
                           leading: Container(
                             padding: const EdgeInsets.all(8),

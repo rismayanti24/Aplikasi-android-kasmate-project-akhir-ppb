@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../data/kas_store.dart';
+import '../utils/format.dart'
+    show CurrencyInputFormatter, formatRibuan, parseNominal;
 
 class HasilScanStruk {
   final List<ItemBelanja> items;
@@ -283,7 +285,11 @@ class _ScanStrukScreenState extends State<ScanStrukScreen> {
     // Buat controller untuk setiap item yang terdeteksi agar bisa diedit user
     for (final it in itemsDitemukan) {
       _namaControllers.add(TextEditingController(text: it['nama'].toString()));
-      _hargaControllers.add(TextEditingController(text: it['harga'].toString()));
+      _hargaControllers.add(
+        TextEditingController(
+          text: formatRibuan(parseNominal(it['harga'].toString())),
+        ),
+      );
     }
 
     setState(() {});
@@ -308,7 +314,7 @@ class _ScanStrukScreenState extends State<ScanStrukScreen> {
   int get _hitungTotalItems {
     int sum = 0;
     for (final c in _hargaControllers) {
-      final val = int.tryParse(c.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      final val = parseNominal(c.text);
       sum += val;
     }
     return sum;
@@ -319,7 +325,7 @@ class _ScanStrukScreenState extends State<ScanStrukScreen> {
 
     for (int i = 0; i < _namaControllers.length; i++) {
       final nama = _namaControllers[i].text.trim();
-      final harga = int.tryParse(_hargaControllers[i].text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      final harga = parseNominal(_hargaControllers[i].text);
 
       if (nama.isNotEmpty && harga > 0) {
         itemsFinal.add(
@@ -524,6 +530,7 @@ class _ScanStrukScreenState extends State<ScanStrukScreen> {
                                     child: TextField(
                                       controller: _hargaControllers[index],
                                       keyboardType: TextInputType.number,
+                                      inputFormatters: [CurrencyInputFormatter()],
                                       decoration: const InputDecoration(
                                         prefixText: 'Rp ',
                                         hintText: '0',

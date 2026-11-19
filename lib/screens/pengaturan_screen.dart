@@ -27,6 +27,16 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   void initState() {
     super.initState();
     _pengingatTagihan = notificationService.aktifNotifier.value;
+    final h = notificationService.ingatkanHariSebelumNotifier.value;
+    if (h == 2) {
+      _ingatkanSebelum = '2 hari';
+    } else if (h == 3) {
+      _ingatkanSebelum = '3 hari';
+    } else if (h >= 7) {
+      _ingatkanSebelum = '1 minggu';
+    } else {
+      _ingatkanSebelum = '1 hari';
+    }
   }
 
   final List<String> _opsiIngatkan = const [
@@ -219,6 +229,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
               try {
                 final uid = authService.currentUser?.uid;
                 if (uid != null) {
+                  await kasStore.bersihkanUserDariSemuaGrup(uid);
                   await firestoreService.hapusProfilUser(uid);
                 }
                 await authService.hapusAkun();
@@ -551,6 +562,11 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                             onChanged: (val) {
                               if (val != null) {
                                 setState(() => _ingatkanSebelum = val);
+                                int hari = 1;
+                                if (val == '2 hari') hari = 2;
+                                if (val == '3 hari') hari = 3;
+                                if (val == '1 minggu') hari = 7;
+                                notificationService.ingatkanHariSebelumNotifier.value = hari;
                               }
                             },
                           ),

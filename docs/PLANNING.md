@@ -869,3 +869,25 @@ dependencies:
 - [x] Hasil scan regex: 0 emoji tersisa di seluruh file `lib/`.
 - [x] `dart analyze lib`: No issues found!
 
+---
+
+## 🛠️ Fase 12: Master Plan Perbaikan 61 Bug & Masalah KasMate [TERENCANA]
+
+> [!IMPORTANT]
+> Detail lengkap pembagian tugas 61 poin temuan terbagi menjadi 8 fase terurut berdasarkan tingkat urgensi keamanan, integritas data, dan stabilitas fungsional.
+
+### Matriks 8 Fase Kerja:
+1. **Fase 12.1 — Fondasi Akun, Sinkronisasi Multi-User & UID Binding** (Poin 16, 40, 61, 56, 58, 59, 21, 18, 19) [SELESAI - 100% ✅]
+2. **Fase 12.2 — Integritas Keuangan, Logika Kas & Otorisasi Transaksi** (Poin 1, 55, 35, 41, 4, 5, 6, 43, 7, 8, 11, 17, 33) [SELESAI - 100% ✅]
+3. **Fase 12.3 — Optimalisasi Bukti Transfer & Penyimpanan Gambar** (Poin 2, 49, 57) [SELESAI - 100% ✅]
+4. **Fase 12.4 — Siklus Hidup Anggota & Proteksi Utang** (Poin 28, 29, 30, 31, 32, 44) [SELESAI - 100% ✅]
+5. **Fase 12.5 — Formulir Input, Validasi & Format Uang** (Poin 38, 45, 47, 48, 13, 15) [SELESAI - 100% ✅]
+6. **Fase 12.6 — Notifikasi Realtime, WhatsApp & Audit Trail** (Poin 3, 10, 14, 24, 25, 37, 46) [SELESAI - 100% ✅]
+7. **Fase 12.7 — Statistik, Visualisasi & Laporan CSV** (Poin 36, 39, 42, 52, 53, 54) [DALAM PROSES - 7.1 & 7.2 SELESAI ✅]
+8. **Fase 12.8 — UI/UX Polish, Stabilitas Layout & Fitur Pelengkap** (Poin 9, 12, 20, 22, 23, 26, 27, 34, 50, 51, 60) [MENUNGGU]
+
+> [!NOTE]
+> **Aturan Eksekusi Git Commit**: Tiap perubahan/edit langsung di-commit ke Git lokal dengan pesan yang sesuai dan terstruktur. Jangan pernah lakukan push ke remote repository.
+
+
+

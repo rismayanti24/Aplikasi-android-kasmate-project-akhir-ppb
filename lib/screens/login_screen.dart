@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../data/profil_store.dart';
+import '../data/kas_store.dart';
 import '../models/pengguna.dart';
 import 'register_screen.dart';
 import 'main_navigation_screen.dart';
@@ -82,7 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
             noRekening: '',
           );
           simpanProfil(baru);
+          await firestoreService.simpanProfilUser(baru);
         }
+
+        // Sinkronkan grup user dari Firestore seketika
+        await kasStore.muatUlangGrupDariFirestore(user.uid);
 
         if (mounted) {
           Navigator.pushReplacement(
@@ -107,6 +112,94 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _dialogLupaPassword() {
+    final emailResetCtrl = TextEditingController(text: _emailController.text.trim());
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_reset_rounded, color: _primaryGreen),
+            SizedBox(width: 8),
+            Text(
+              'Lupa Kata Sandi?',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Masukkan email akun kamu. Kami akan mengirimkan tautan untuk mereset kata sandi.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: emailResetCtrl,
+              keyboardType: TextInputType.emailAddress,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Email Akun',
+                hintText: 'nama@email.com',
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final emailTarget = emailResetCtrl.text.trim();
+              if (emailTarget.isEmpty) return;
+              Navigator.pop(ctx);
+              try {
+                await authService.resetPassword(emailTarget);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Tautan reset kata sandi telah dikirim ke $emailTarget'),
+                      backgroundColor: _primaryGreen,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(e.toString()),
+                      backgroundColor: const Color(0xFFB91C1C),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Kirim Email'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _masukSebagaiTamu() {
@@ -191,7 +284,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _dialogLupaPassword,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: _primaryGreen,
+                  ),
+                  child: const Text(
+                    'Lupa kata sandi?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 style: ElevatedButton.styleFrom(
