@@ -1350,7 +1350,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              isTidakAda ? 'Bebas' : (isLunas ? 'Lunas' : 'Belum'),
+                              isTidakAda ? 'Bebas Tagihan' : (isLunas ? 'Lunas' : 'Belum Bayar'),
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,

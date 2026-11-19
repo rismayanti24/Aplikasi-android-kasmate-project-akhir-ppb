@@ -192,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        '${g.kodeUndangan} • ${g.anggota.length} anggota',
+                        '${g.kodeUndangan} • ${g.tipeGrup == 'kasResmi' ? 'Kas Resmi' : 'Patungan'} • ${g.anggota.length} anggota',
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                       ),
                       trailing: isAktif
@@ -629,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
-                                    state.tipeGrup == 'kasResmi' ? 'Kas Resmi' : 'Patungan Santai',
+                                    state.tipeGrup == 'kasResmi' ? 'Kas Resmi' : 'Patungan',
                                     style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                                   ),
                                 ],
@@ -887,6 +887,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () {
                               if (a.tagihan > 0) {
                                 kasStore.kirimTagihanWhatsApp(a);
+                              } else if (isLunas) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${a.nama} telah melunasi semua tagihan.'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${a.nama} bebas tagihan (tidak ada kewajiban kas).'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
                               }
                             },
                             borderRadius: BorderRadius.circular(16),

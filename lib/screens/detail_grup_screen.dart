@@ -750,7 +750,7 @@ class DetailGrupScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
-                                  isKasResmi ? 'Kas Resmi' : 'Patungan Santai',
+                                  isKasResmi ? 'Kas Resmi' : 'Patungan',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,

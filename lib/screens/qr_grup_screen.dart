@@ -83,7 +83,7 @@ class QrGrupScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          isKasResmi ? 'Kas Resmi' : 'Patungan Santai',
+                          isKasResmi ? 'Kas Resmi' : 'Patungan',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,

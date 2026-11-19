@@ -13,6 +13,7 @@ class BuatGrupScreen extends StatefulWidget {
 class _BuatGrupScreenState extends State<BuatGrupScreen> {
   final TextEditingController _namaGrupController = TextEditingController();
   late final String _inviteCode;
+  String _tipeGrup = 'kasResmi';
   bool _isLoading = false;
 
   @override
@@ -44,7 +45,7 @@ class _BuatGrupScreenState extends State<BuatGrupScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final grup = await kasStore.buatGrupBaru(_namaGrupController.text, _inviteCode);
+      final grup = await kasStore.buatGrupBaru(_namaGrupController.text, _inviteCode, _tipeGrup);
 
       if (bukaWa) {
         await kasStore.bagikanUndanganGrupWhatsApp(grup);
@@ -140,7 +141,112 @@ class _BuatGrupScreenState extends State<BuatGrupScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
+              const Text(
+                'Tipe grup',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _tipeGrup = 'kasResmi'),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _tipeGrup == 'kasResmi' ? const Color(0xFFDCFCE7) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _tipeGrup == 'kasResmi' ? const Color(0xFF074E3B) : const Color(0xFFE5E7EB),
+                            width: _tipeGrup == 'kasResmi' ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.account_balance_rounded,
+                                  size: 15,
+                                  color: _tipeGrup == 'kasResmi' ? const Color(0xFF074E3B) : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Kas Resmi',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: _tipeGrup == 'kasResmi' ? const Color(0xFF074E3B) : const Color(0xFF1E293B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Ada saldo kas bersama & iuran rutin.',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _tipeGrup = 'patungan'),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _tipeGrup == 'patungan' ? const Color(0xFFDCFCE7) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _tipeGrup == 'patungan' ? const Color(0xFF074E3B) : const Color(0xFFE5E7EB),
+                            width: _tipeGrup == 'patungan' ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.splitscreen_rounded,
+                                  size: 15,
+                                  color: _tipeGrup == 'patungan' ? const Color(0xFF074E3B) : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Patungan',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: _tipeGrup == 'patungan' ? const Color(0xFF074E3B) : const Color(0xFF1E293B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Murni bagi tagihan / split bill kegiatan.',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
