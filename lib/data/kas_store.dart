@@ -680,6 +680,16 @@ class KasStore extends ValueNotifier<KasRootState> {
     return false;
   }
 
+  /// Sisa tagihan efektif anggota: porsi yang sumbernya Kas grup sudah
+  /// dipotong dari saldo, jadi tidak dihitung sebagai tanggungan anggota.
+  int tagihanEfektif(AnggotaKas a) {
+    final porsiKasGrup = grupAktif.daftarTagihan
+        .where((t) => t.sumberDana == 'Kas grup')
+        .fold<int>(0, (sum, t) => sum + t.porsiUntuk(a.id));
+    final sisa = a.tagihan - porsiKasGrup;
+    return sisa > 0 ? sisa : 0;
+  }
+
   /// Tagihan yang HARUS DIBAYAR oleh user yang sedang login ke orang lain
   List<TagihanDetailItem> tagihanSaya([String? userId]) {
     final me = currentAnggota;
@@ -702,6 +712,8 @@ class KasStore extends ValueNotifier<KasRootState> {
 
     for (final t in grupAktif.daftarTagihan) {
       if (t.porsiUntuk(targetAnggota.id) <= 0) continue;
+      // Tagihan yang sumbernya Kas grup sudah dipotong dari saldo, bukan tanggungan pribadi
+      if (t.sumberDana == 'Kas grup') continue;
       if (t.sumberDana == 'Dana pribadi' &&
           (t.penerimaId == targetAnggota.id ||
               (targetAnggota.uid != null && t.penerimaId == targetAnggota.uid))) {
@@ -743,7 +755,13 @@ class KasStore extends ValueNotifier<KasRootState> {
       );
     }
 
-    if (result.isEmpty && targetAnggota.tagihan > 0) {
+    // Data lama: porsi tagihan Kas grup pernah tercatat di anggota.tagihan, padahal sudah dipotong dari saldo
+    final porsiKasGrup = grupAktif.daftarTagihan
+        .where((t) => t.sumberDana == 'Kas grup')
+        .fold<int>(0, (sum, t) => sum + t.porsiUntuk(targetAnggota.id));
+    final sisaTagihan = targetAnggota.tagihan - porsiKasGrup;
+
+    if (result.isEmpty && sisaTagihan > 0) {
       String bankBendahara = '';
       String rekBendahara = '';
       final isMeBendahara =
@@ -791,7 +809,7 @@ class KasStore extends ValueNotifier<KasRootState> {
           id: 'ts_default_${targetAnggota.id}',
           tagihanId: 'default',
           judul: 'Iuran / Tagihan grup',
-          nominal: targetAnggota.tagihan,
+          nominal: sisaTagihan,
           status: sedangMenunggu ? StatusBayar.menunggu : StatusBayar.belum,
           namaPenerima: grupAktif.bendahara,
           penerimaId: grupAktif.bendaharaUid ?? '',
@@ -829,7 +847,12 @@ class KasStore extends ValueNotifier<KasRootState> {
         : (grupAktif.tipeGrup == 'kasResmi' ? 'Kas grup' : 'Dana pribadi');
 
     for (final a in grupAktif.anggota) {
-      if (a.id != targetId && a.status != StatusBayar.lunas && a.status != StatusBayar.tidakAdaTagihan && a.tagihan > 0) {
+      // Porsi tagihan Kas grup sudah dipotong dari saldo, jangan dihitung sebagai tagihan anggota
+      final porsiKasGrup = grupAktif.daftarTagihan
+          .where((t) => t.sumberDana == 'Kas grup')
+          .fold<int>(0, (sum, t) => sum + t.porsiUntuk(a.id));
+      final sisaTagihan = a.tagihan - porsiKasGrup;
+      if (a.id != targetId && a.status != StatusBayar.lunas && a.status != StatusBayar.tidakAdaTagihan && sisaTagihan > 0) {
         final sayaPenerima = isBendahara ||
             grupAktif.daftarTagihan.any((t) => t.penerimaId == targetId);
 
@@ -841,7 +864,7 @@ class KasStore extends ValueNotifier<KasRootState> {
                   ? grupAktif.daftarTagihan.first.id
                   : 'default',
               judul: judulAktif,
-              nominal: a.tagihan,
+              nominal: sisaTagihan,
               status: a.status,
               namaPenerima: me.nama,
               penerimaId: me.uid ?? me.id,
@@ -1706,6 +1729,10 @@ class KasStore extends ValueNotifier<KasRootState> {
 
     final anggotaTerupdate = g.anggota.map((anggota) {
       if (targetIds.contains(anggota.id)) {
+        if (sumberDana == 'Kas grup') {
+          // Dibayar dari saldo kas grup, anggota tidak ditagih lagi
+          return anggota;
+        }
         if (sumberDana == 'Dana pribadi' && anggota.id == penerima.id) {
           // Yang nalangin sudah bayar porsi pengeluarannya sendiri di awal
           return anggota;

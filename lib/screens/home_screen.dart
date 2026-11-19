@@ -311,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w600, color: _darkBg),
                   ),
                   subtitle: Text(
-                    'Tagihan: ${formatRupiah(anggota.tagihan)}',
+                    'Tagihan: ${formatRupiah(kasStore.tagihanEfektif(anggota))}',
                     style: const TextStyle(color: Color(0xFFB91C1C), fontWeight: FontWeight.w500),
                   ),
                   trailing: ElevatedButton.icon(
@@ -385,7 +385,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _darkBg),
                       ),
                       Text(
-                        'Total tagihan: ${formatRupiah(a.tagihan)}',
+                        'Total tagihan: ${formatRupiah(kasStore.tagihanEfektif(a))}',
                         style: const TextStyle(fontSize: 13, color: Color(0xFFDC2626), fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -959,7 +959,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         final a = state.anggota[idx - 1];
                         final isLunas = a.status == StatusBayar.lunas;
                         final isMenunggu = a.status == StatusBayar.menunggu;
-                        final isBelum = a.status == StatusBayar.belum || a.tagihan > 0;
+                        final tagihanA = kasStore.tagihanEfektif(a);
+                        final isBelum = tagihanA > 0;
                         final isBebas = !isLunas && !isMenunggu && !isBelum;
                         final namaSingkat = a.nama.split(' ').first;
 
@@ -969,10 +970,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () {
                               final isUserSendiri = kasStore.isCurrentUser(a);
                               if (isUserSendiri) {
-                                if (a.tagihan > 0) {
+                                if (tagihanA > 0) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Kamu memiliki tagihan sebesar ${formatRupiah(a.tagihan)}.'),
+                                      content: Text('Kamu memiliki tagihan sebesar ${formatRupiah(tagihanA)}.'),
                                       behavior: SnackBarBehavior.floating,
                                       action: SnackBarAction(
                                         label: 'Bayar Sekarang',
@@ -997,7 +998,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   );
                                 }
-                              } else if (a.tagihan > 0) {
+                              } else if (tagihanA > 0) {
                                 _tampilkanDialogIngatkanAnggota(context, a);
                               } else if (isLunas) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1062,7 +1063,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ? 'Lunas'
                                         : (isMenunggu
                                             ? 'Menunggu'
-                                            : (isBelum ? formatRupiah(a.tagihan) : 'Bebas')),
+                                            : (isBelum ? formatRupiah(tagihanA) : 'Bebas')),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
