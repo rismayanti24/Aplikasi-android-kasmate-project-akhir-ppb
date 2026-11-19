@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../utils/hitung_tagihan.dart';
 import '../utils/input_validation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -76,6 +77,9 @@ class TagihanKas {
   final String sumberDana;
   final List<ItemBelanja> items;
   final int subtotal;
+  final double pajakPersen;
+  final int diskon;
+  final int biayaLayanan;
   final int pajak;
   final int total;
   final int porsiPerOrang;
@@ -93,6 +97,9 @@ class TagihanKas {
     required this.sumberDana,
     required this.items,
     required this.subtotal,
+    this.pajakPersen = 0,
+    this.diskon = 0,
+    this.biayaLayanan = 0,
     required this.pajak,
     required this.total,
     required this.porsiPerOrang,
@@ -934,18 +941,38 @@ class KasStore extends ValueNotifier<KasRootState> {
     _updateGrupAktif(grupTerupdate);
   }
 
-  void tambahTagihan({
+  bool tambahTagihan({
     required String judul,
     required String sumberDana,
     required List<ItemBelanja> items,
     required List<String> idAnggotaDitagih,
     String? penerimaIdOverride,
     bool pakaiPajak = false,
+    double pajakPersen = 10,
+    int diskon = 0,
+    int biayaLayanan = 0,
   }) {
     final g = grupAktif;
+    if (items.isEmpty || items.any((item) => item.harga < 0)) {
+      throw ArgumentError('Item pengeluaran tidak valid');
+    }
     final subtotal = items.fold<int>(0, (sum, item) => sum + item.harga);
-    final pajak = pakaiPajak ? (subtotal * 0.1).round() : 0;
-    final total = subtotal + pajak;
+    final rincian = RincianTagihan.hitung(
+      subtotal: subtotal,
+      pajakPersen: pakaiPajak ? pajakPersen : 0,
+      diskon: diskon,
+      biayaLayanan: biayaLayanan,
+    );
+    final pajak = rincian.pajak;
+    final total = rincian.total;
+    if (total <= 0) {
+      throw ArgumentError('Total pengeluaran harus lebih dari nol');
+    }
+
+    // Cegah saldo kas minus jika pengeluaran dibebankan ke Kas grup
+    if (sumberDana == 'Kas grup' && total > g.saldo) {
+      return false;
+    }
 
     final targetIds = idAnggotaDitagih.isEmpty
         ? g.anggota.map((e) => e.id).toList()
@@ -983,6 +1010,9 @@ class KasStore extends ValueNotifier<KasRootState> {
       sumberDana: sumberDana,
       items: List<ItemBelanja>.from(items),
       subtotal: subtotal,
+      pajakPersen: rincian.pajakPersen,
+      diskon: rincian.diskon,
+      biayaLayanan: rincian.biayaLayanan,
       pajak: pajak,
       total: total,
       porsiPerOrang: porsi,
@@ -1033,6 +1063,7 @@ class KasStore extends ValueNotifier<KasRootState> {
       body: 'Tagihan ${formatRupiah(total)} dibuat untuk ${targetIds.length} anggota di ${g.namaGrup}',
       payload: 'tagihan_baru',
     );
+    return true;
   }
 
   // ==================== UPDATE ====================

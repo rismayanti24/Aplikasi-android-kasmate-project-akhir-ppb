@@ -1,4 +1,6 @@
 import 'scan_struk_screen.dart';
+import '../utils/hitung_tagihan.dart';
+import '../utils/format.dart' show CurrencyInputFormatter, parseNominal;
 import 'package:flutter/material.dart';
 import '../data/kas_store.dart';
 import 'buat_grup_screen.dart';
@@ -14,6 +16,10 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
   final TextEditingController _judulController = TextEditingController();
   final TextEditingController _namaItemController = TextEditingController();
   final TextEditingController _hargaItemController = TextEditingController();
+  final _pajakPersenController = TextEditingController(text: '10');
+  final _diskonController = TextEditingController();
+  final _biayaLayananController = TextEditingController();
+  final _penyesuaianKey = GlobalKey<FormState>();
 
   int _sumberDanaIndex = 0;
   int _bagiKeIndex = 0;
@@ -44,6 +50,9 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
     _judulController.dispose();
     _namaItemController.dispose();
     _hargaItemController.dispose();
+    _pajakPersenController.dispose();
+    _diskonController.dispose();
+    _biayaLayananController.dispose();
     super.dispose();
   }
 
@@ -73,8 +82,24 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
 
   int get _subtotal =>
       _semuaItemAktif.fold<int>(0, (sum, item) => sum + item.harga);
-  int get _pajak => _pakaiPajak ? (_subtotal * 0.1).round() : 0;
-  int get _total => _subtotal + _pajak;
+  RincianTagihan? get _rincian {
+    final persen = _pakaiPajak
+        ? parsePersenPajak(_pajakPersenController.text)
+        : 0.0;
+    if (persen == null) return null;
+    try {
+      return RincianTagihan.hitung(
+        subtotal: _subtotal,
+        pajakPersen: persen,
+        diskon: parseNominal(_diskonController.text),
+        biayaLayanan: parseNominal(_biayaLayananController.text),
+      );
+    } on ArgumentError {
+      return null;
+    }
+  }
+
+  int get _total => _rincian?.total ?? 0;
 
   Future<void> _bukaScanStruk() async {
     final hasil = await Navigator.push<HasilScanStruk>(
@@ -151,6 +176,15 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
       return;
     }
 
+    if (!_penyesuaianKey.currentState!.validate()) return;
+    final rincian = _rincian;
+    if (rincian == null || rincian.total <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Total pengeluaran harus lebih dari nol')),
+      );
+      return;
+    }
+
     final judulFinal = _judulController.text.trim().isEmpty
         ? daftarFinal.first.nama
         : _judulController.text.trim();
@@ -161,14 +195,27 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
 
     final sumberDana = _sumberDanaIndex == 0 ? 'Kas grup' : 'Dana pribadi';
 
-    kasStore.tambahTagihan(
+    final sukses = kasStore.tambahTagihan(
       judul: judulFinal,
       sumberDana: sumberDana,
       items: daftarFinal,
       idAnggotaDitagih: targetIds,
       penerimaIdOverride: _sumberDanaIndex == 1 ? _penalangiId : null,
       pakaiPajak: _pakaiPajak,
+      pajakPersen: rincian.pajakPersen,
+      diskon: rincian.diskon,
+      biayaLayanan: rincian.biayaLayanan,
     );
+
+    if (!sukses) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal membuat tagihan: Saldo kas grup tidak mencukupi!'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
 
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -589,44 +636,11 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
                       ),
                       const Divider(color: Color(0xFFE5E7EB), height: 20),
                     ],
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.receipt_outlined, size: 18, color: Color(0xFF6B7280)),
-                            SizedBox(width: 8),
-                            Text(
-                              'Kenakan Pajak (10%)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF374151),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Switch.adaptive(
-                          value: _pakaiPajak,
-                          activeThumbColor: _primaryGreen,
-                          onChanged: (val) {
-                            setState(() => _pakaiPajak = val);
-                          },
-                        ),
-                      ],
-                    ),
-                    if (_pakaiPajak) ...[
-                      const Divider(color: Color(0xFFE5E7EB), height: 16),
-                      _buildReceiptRow(
-                        'Pajak 10%',
-                        formatRupiah(_pajak),
-                        isMuted: true,
-                      ),
-                    ],
+                    _buildPenyesuaianTagihan(),
                     const Divider(color: Color(0xFFE5E7EB), height: 20),
                     _buildReceiptRow(
                       'Total',
-                      formatRupiah(_total),
+                      _rincian == null ? '—' : formatRupiah(_total),
                       isBold: true,
                     ),
                   ],
@@ -814,6 +828,106 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPenyesuaianTagihan() {
+    final rincian = _rincian;
+    return Form(
+      key: _penyesuaianKey,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Tambahkan pajak', style: TextStyle(fontSize: 13)),
+              value: _pakaiPajak,
+              activeThumbColor: _primaryGreen,
+              onChanged: (value) => setState(() => _pakaiPajak = value),
+            ),
+          ),
+          if (_pakaiPajak) ...[
+            TextFormField(
+              controller: _pajakPersenController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Pajak',
+                suffixText: '%',
+                hintText: '10',
+                errorMaxLines: 2,
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) => parsePersenPajak(value ?? '') == null
+                  ? 'Isi pajak 0–100%, maksimal dua angka desimal'
+                  : null,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+          ],
+          const Text(
+            'Jika total pada struk sudah termasuk pajak, jangan aktifkan pajak '
+            'lagi agar tidak dihitung dua kali.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _diskonController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [CurrencyInputFormatter()],
+            decoration: const InputDecoration(
+              labelText: 'Diskon (nominal)',
+              prefixText: 'Rp ',
+              hintText: '0',
+              errorMaxLines: 2,
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => parseNominal(value ?? '') > _subtotal
+                ? 'Diskon tidak boleh melebihi subtotal'
+                : null,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _biayaLayananController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [CurrencyInputFormatter()],
+            decoration: const InputDecoration(
+              labelText: 'Biaya layanan (nominal)',
+              prefixText: 'Rp ',
+              hintText: '0',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Pajak dihitung setelah diskon. Biaya layanan ditambahkan setelah '
+            'pajak. Nominal pajak dibulatkan ke rupiah terdekat.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
+          const Divider(color: Color(0xFFE5E7EB), height: 20),
+          _buildReceiptRow('Subtotal', formatRupiah(_subtotal)),
+          if (rincian != null) ...[
+            if (rincian.diskon > 0)
+              _buildReceiptRow('Diskon', '-${formatRupiah(rincian.diskon)}'),
+            if (_pakaiPajak)
+              _buildReceiptRow(
+                'Pajak ${formatPersenPajak(rincian.pajakPersen)}%',
+                formatRupiah(rincian.pajak),
+                isMuted: true,
+              ),
+            if (rincian.biayaLayanan > 0)
+              _buildReceiptRow('Biaya layanan', formatRupiah(rincian.biayaLayanan)),
+          ] else
+            const Text(
+              'Periksa persentase pajak dan nominal diskon.',
+              style: TextStyle(fontSize: 12, color: Color(0xFFDC2626)),
+            ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import '../data/profil_store.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../utils/hitung_tagihan.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../data/kas_store.dart';
@@ -115,7 +116,16 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
         final bagianPajak = adaPajak
             ? (totalTagihan * (tagihanAktif.pajak / tagihanAktif.total)).round()
             : 0;
-        final bagianItem = totalTagihan - bagianPajak;
+        final bagianDiskon = tagihanAktif != null && tagihanAktif.total > 0
+            ? (totalTagihan * tagihanAktif.diskon / tagihanAktif.total).round()
+            : 0;
+        final bagianLayanan = tagihanAktif != null && tagihanAktif.total > 0
+            ? (totalTagihan * tagihanAktif.biayaLayanan / tagihanAktif.total).round()
+            : 0;
+        final bagianItem = totalTagihan - bagianPajak - bagianLayanan + bagianDiskon;
+        final labelPajak = adaPajak && tagihanAktif.pajakPersen > 0
+            ? 'Bagian pajak (${formatPersenPajak(tagihanAktif.pajakPersen)}%)'
+            : 'Bagian pajak';
 
         // Info transfer dinamis sesuai penerima tagihan / pihak yang menalangi
         final namaPenerima = (tagihanAktif != null && tagihanAktif.namaPenerima.isNotEmpty)
@@ -302,9 +312,18 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                         ),
                         const SizedBox(height: 8),
                         _buildDetailRow(
-                          adaPajak ? 'Bagian pajak (10%)' : 'Pajak',
+                          adaPajak ? labelPajak : 'Pajak',
                           adaPajak ? formatRupiah(bagianPajak) : 'Tidak ada (Rp 0)',
                         ),
+                        if (bagianDiskon > 0) ...[
+                          const SizedBox(height: 8),
+                          _buildDetailRow('Bagian diskon', '-${formatRupiah(bagianDiskon)}'),
+                        ],
+                        if (bagianLayanan > 0) ...[
+                          const SizedBox(height: 8),
+                          _buildDetailRow('Bagian biaya layanan', formatRupiah(bagianLayanan)),
+                        ],
+
                       ],
                     ),
                   ),
