@@ -49,6 +49,29 @@ class RincianTagihan {
   int get total => subtotal - diskon + pajak + biayaLayanan;
 }
 
+/// Membagi rupiah bulat tanpa menambah total. Sisa diberikan ke penalang yang
+/// ikut pembagian, atau anggota pertama. Urutan ID harus tetap saat disimpan.
+Map<String, int> bagiRataTagihan(
+  int total,
+  List<String> anggotaIds, {
+  String? penanggungSisaId,
+}) {
+  if (total < 0 || anggotaIds.isEmpty || anggotaIds.any((id) => id.isEmpty)) {
+    throw ArgumentError('Total dan daftar anggota pembagian tidak valid');
+  }
+  if (anggotaIds.toSet().length != anggotaIds.length) {
+    throw ArgumentError('Anggota pembagian tidak boleh duplikat');
+  }
+  final dasar = total ~/ anggotaIds.length;
+  final sisa = total % anggotaIds.length;
+  final penanggung = anggotaIds.contains(penanggungSisaId)
+      ? penanggungSisaId
+      : anggotaIds.first;
+  return Map.unmodifiable({
+    for (final id in anggotaIds) id: dasar + (id == penanggung ? sisa : 0),
+  });
+}
+
 /// Koma dan titik diterima sebagai desimal persen, bukan pemisah ribuan.
 double? parsePersenPajak(String text) {
   final nilai = text.trim();

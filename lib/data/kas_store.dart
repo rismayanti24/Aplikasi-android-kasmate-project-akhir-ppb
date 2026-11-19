@@ -83,12 +83,14 @@ class TagihanKas {
   final int pajak;
   final int total;
   final int porsiPerOrang;
+  final Map<String, int> porsiAnggota;
 
   // Info penerima transfer (siapa yang nalangin / harus menerima uang)
   final String penerimaId;
   final String namaPenerima;
   final String bankPenerima;
   final String rekPenerima;
+  final List<String> anggotaDitagihIds;
 
   const TagihanKas({
     required this.id,
@@ -103,11 +105,22 @@ class TagihanKas {
     required this.pajak,
     required this.total,
     required this.porsiPerOrang,
+    this.porsiAnggota = const {},
     required this.penerimaId,
     required this.namaPenerima,
     this.bankPenerima = '',
     this.rekPenerima = '',
+    this.anggotaDitagihIds = const [],
   });
+
+  int porsiUntuk(String anggotaId) {
+    if (porsiAnggota.isNotEmpty) return porsiAnggota[anggotaId] ?? 0;
+    // Data lama tidak dihitung ulang supaya utang historis tidak ikut berubah.
+    if (anggotaDitagihIds.isNotEmpty && !anggotaDitagihIds.contains(anggotaId)) {
+      return 0;
+    }
+    return porsiPerOrang;
+  }
 }
 
 class KonfirmasiItem {
@@ -377,13 +390,13 @@ class KasStore extends ValueNotifier<KasRootState> {
     if (me.id == targetId && me.status != StatusBayar.lunas && me.status != StatusBayar.tidakAdaTagihan && me.tagihan > 0) {
       if (grupAktif.daftarTagihan.isNotEmpty) {
         for (final t in grupAktif.daftarTagihan) {
-          if (t.penerimaId != me.id) {
+          if (t.penerimaId != me.id && t.porsiUntuk(me.id) > 0) {
             result.add(
               TagihanDetailItem(
                 id: 'ts_${t.id}_${me.id}',
                 tagihanId: t.id,
                 judul: t.judul,
-                nominal: t.porsiPerOrang > 0 ? t.porsiPerOrang : me.tagihan,
+                nominal: t.porsiUntuk(me.id),
                 status: me.status,
                 namaPenerima: t.namaPenerima,
                 bankPenerima: t.bankPenerima,
@@ -974,11 +987,14 @@ class KasStore extends ValueNotifier<KasRootState> {
       return false;
     }
 
-    final targetIds = idAnggotaDitagih.isEmpty
-        ? g.anggota.map((e) => e.id).toList()
-        : idAnggotaDitagih;
-
-    final porsi = targetIds.isEmpty ? total : (total / targetIds.length).ceil();
+    final targetIds = (idAnggotaDitagih.isEmpty
+        ? g.anggota.map((e) => e.id)
+        : idAnggotaDitagih).toSet().toList();
+    final anggotaIds = g.anggota.map((a) => a.id).toSet();
+    if (targetIds.isEmpty || targetIds.any((id) => !anggotaIds.contains(id))) {
+      throw ArgumentError('Pilih anggota grup yang valid untuk pembagian');
+    }
+    final porsi = total ~/ targetIds.length;
 
     // Tentukan siapa penerima transfer:
     // - Kalau ada override (dari UI "Siapa yang nalangin?") → pakai itu
@@ -999,6 +1015,12 @@ class KasStore extends ValueNotifier<KasRootState> {
       );
     }
 
+    final porsiAnggota = bagiRataTagihan(
+      total,
+      targetIds,
+      penanggungSisaId: sumberDana == 'Dana pribadi' ? penerima.id : null,
+    );
+
     final isMe = penerima.nama.toLowerCase() == currentUserNama.toLowerCase();
     final bank = isMe ? profil.bank : (penerima.nama.toLowerCase() == g.bendahara.toLowerCase() ? profil.bank : '');
     final rek = isMe ? profil.noRekening : (penerima.nama.toLowerCase() == g.bendahara.toLowerCase() ? profil.noRekening : '');
@@ -1016,10 +1038,12 @@ class KasStore extends ValueNotifier<KasRootState> {
       pajak: pajak,
       total: total,
       porsiPerOrang: porsi,
+      porsiAnggota: porsiAnggota,
       penerimaId: penerima.id,
       namaPenerima: penerima.nama,
       bankPenerima: bank,
       rekPenerima: rek,
+      anggotaDitagihIds: List<String>.from(targetIds),
     );
 
     final anggotaTerupdate = g.anggota.map((anggota) {
@@ -1028,8 +1052,10 @@ class KasStore extends ValueNotifier<KasRootState> {
           // Yang nalangin sudah bayar porsi pengeluarannya sendiri di awal
           return anggota;
         }
+        final bagian = porsiAnggota[anggota.id] ?? 0;
+        if (bagian == 0) return anggota;
         return anggota.copyWith(
-          tagihan: anggota.tagihan + porsi,
+          tagihan: anggota.tagihan + bagian,
           status: StatusBayar.belum,
         );
       }
@@ -1193,10 +1219,20 @@ class KasStore extends ValueNotifier<KasRootState> {
     final kembalikanKas = target.sumberDana == 'Kas grup';
 
     final anggotaTerupdate = g.anggota.map((a) {
+      // Hanya kurangi tagihan dari anggota yang memang ikut ditagih (Poin 7)
+      final isAnggotaDitagih = target.porsiAnggota.isNotEmpty
+          ? target.porsiAnggota.containsKey(a.id)
+          : (target.anggotaDitagihIds.isEmpty ||
+              target.anggotaDitagihIds.contains(a.id));
+
+      if (!isAnggotaDitagih || target.porsiUntuk(a.id) <= 0) {
+        return a;
+      }
+
       if (target.sumberDana == 'Dana pribadi' && a.id == target.penerimaId) {
         return a;
       }
-      final sisa = max(0, a.tagihan - target.porsiPerOrang);
+      final sisa = max(0, a.tagihan - target.porsiUntuk(a.id));
       final statusBaru = sisa == 0
           ? StatusBayar.tidakAdaTagihan
           : (a.status == StatusBayar.lunas ? StatusBayar.lunas : StatusBayar.belum);

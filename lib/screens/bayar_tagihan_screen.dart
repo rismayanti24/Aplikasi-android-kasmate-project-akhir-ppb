@@ -18,7 +18,6 @@ class BayarTagihanScreen extends StatefulWidget {
 }
 
 class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
-  String? _selectedAnggotaId;
   String? _selectedTagihanId;
   XFile? _buktiFoto;
   final ImagePicker _picker = ImagePicker();
@@ -90,25 +89,29 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
       valueListenable: kasStore,
       builder: (context, rootState, _) {
         final state = rootState.grupAktif;
-        final belumBayarList =
-            state.anggota.where((a) => a.status == StatusBayar.belum || a.status == StatusBayar.menunggu).toList();
+        // Kunci pembayaran hanya untuk anggota yang sedang login (Poin 35 & 41)
+        final me = kasStore.currentAnggota;
+        final AnggotaKas? aktif = me != null &&
+                (me.status == StatusBayar.belum || me.status == StatusBayar.menunggu) &&
+                me.tagihan > 0
+            ? me
+            : null;
 
-        final AnggotaKas? aktif = belumBayarList.isEmpty
+        final tagihanUntukSaya = me == null
+            ? <TagihanKas>[]
+            : state.daftarTagihan.where((t) =>
+                t.porsiUntuk(me.id) > 0 &&
+                !(t.sumberDana == 'Dana pribadi' && t.penerimaId == me.id),
+              ).toList();
+        final TagihanKas? tagihanAktif = tagihanUntukSaya.isEmpty
             ? null
-            : belumBayarList.firstWhere(
-                (a) => a.id == _selectedAnggotaId,
-                orElse: () => belumBayarList.first,
-              );
-
-        final TagihanKas? tagihanAktif = state.daftarTagihan.isEmpty
-            ? null
-            : state.daftarTagihan.firstWhere(
+            : tagihanUntukSaya.firstWhere(
                 (t) => t.id == _selectedTagihanId,
-                orElse: () => state.daftarTagihan.first,
+                orElse: () => tagihanUntukSaya.first,
               );
 
-        final totalTagihan = (tagihanAktif != null && tagihanAktif.porsiPerOrang > 0)
-            ? tagihanAktif.porsiPerOrang
+        final totalTagihan = tagihanAktif != null && me != null
+            ? tagihanAktif.porsiUntuk(me.id)
             : (aktif?.tagihan ?? 0);
         final adaPajak = tagihanAktif != null &&
             tagihanAktif.pajak > 0 &&
@@ -163,37 +166,33 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (belumBayarList.isNotEmpty) ...[
-                    const Text(
-                      'Bayar sebagai anggota:',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                    ),
-                    const SizedBox(height: 6),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: belumBayarList.map((a) {
-                          final selected = aktif?.id == a.id;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(a.nama),
-                              selected: selected,
-                              selectedColor: const Color(0xFFDCFCE7),
-                              onSelected: (_) {
-                                setState(() {
-                                  _selectedAnggotaId = a.id;
-                                  _buktiFoto = null;
-                                });
-                              },
+                  if (aktif != null) ...[
+                    Row(
+                      children: [
+                        const Text(
+                          'Pembayar: ',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            aktif.nama,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF065F46),
                             ),
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                   ],
-                  if (state.daftarTagihan.length > 1) ...[
+                  if (tagihanUntukSaya.length > 1) ...[
                     const Text(
                       'Pilih tagihan yang ingin dibayar:',
                       style: TextStyle(
@@ -206,13 +205,13 @@ class _BayarTagihanScreenState extends State<BayarTagihanScreen> {
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: state.daftarTagihan.map((t) {
+                        children: tagihanUntukSaya.map((t) {
                           final selected = (tagihanAktif?.id == t.id);
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ChoiceChip(
                               label: Text(
-                                '${t.judul} (${formatRupiah(t.porsiPerOrang > 0 ? t.porsiPerOrang : t.total)})',
+                                '${t.judul} (${formatRupiah(t.porsiUntuk(me!.id))})',
                               ),
                               selected: selected,
                               selectedColor: const Color(0xFFDCFCE7),

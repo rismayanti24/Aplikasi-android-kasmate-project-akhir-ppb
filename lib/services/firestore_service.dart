@@ -213,10 +213,12 @@ class FirestoreService {
                 'pajak': t.pajak,
                 'total': t.total,
                 'porsiPerOrang': t.porsiPerOrang,
+                'porsiAnggota': t.porsiAnggota,
                 'penerimaId': t.penerimaId,
                 'namaPenerima': t.namaPenerima,
                 'bankPenerima': t.bankPenerima,
                 'rekPenerima': t.rekPenerima,
+                'anggotaDitagihIds': t.anggotaDitagihIds,
                 'items': t.items
                     .map((i) => {
                           'id': i.id,
@@ -326,10 +328,15 @@ class FirestoreService {
         pajak: map['pajak'] ?? 0,
         total: map['total'] ?? 0,
         porsiPerOrang: map['porsiPerOrang'] ?? 0,
+        porsiAnggota: ((map['porsiAnggota'] as Map<String, dynamic>?) ?? {})
+            .map((id, nominal) => MapEntry(id, (nominal as num).toInt())),
         penerimaId: map['penerimaId'] ?? '',
         namaPenerima: map['namaPenerima'] ?? '',
         bankPenerima: map['bankPenerima'] ?? '',
         rekPenerima: map['rekPenerima'] ?? '',
+        anggotaDitagihIds: ((map['anggotaDitagihIds'] as List<dynamic>?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
       );
     }).toList();
 

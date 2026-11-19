@@ -699,6 +699,8 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
                   }).toList(),
                 ),
               ],
+              const SizedBox(height: 16),
+              _buildRincianPembagian(),
               const SizedBox(height: 24),
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
@@ -828,6 +830,69 @@ class _BuatTagihanScreenState extends State<BuatTagihanScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRincianPembagian() {
+    final total = _rincian?.total;
+    final grup = kasStore.grupAktif;
+    final targetIds = _bagiKeIndex == 0
+        ? grup.anggota.map((a) => a.id).toList()
+        : _anggotaTerpilih.toList();
+    if (total == null || total <= 0 || targetIds.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final porsi = bagiRataTagihan(
+      total,
+      targetIds,
+      penanggungSisaId: _sumberDanaIndex == 1 ? _penalangiId : null,
+    );
+    final sisa = total % targetIds.length;
+    final penanggungId = porsi.keys.firstWhere(
+      (id) => porsi[id]! > total ~/ targetIds.length,
+      orElse: () => targetIds.first,
+    );
+    final penanggung = grup.anggota.firstWhere((a) => a.id == penanggungId);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Rincian pembagian', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          for (final id in targetIds) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    grup.anggota.firstWhere((a) => a.id == id).nama,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(formatRupiah(porsi[id]!)),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
+          Text(
+            sisa > 0
+                ? 'Sisa pembulatan ${formatRupiah(sisa)} masuk ke bagian ${penanggung.nama}.'
+                : 'Dibagi rata tanpa sisa pembulatan.',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
+          if (_sumberDanaIndex == 1 && porsi.containsKey(_penalangiId))
+            const Text(
+              'Bagian orang yang menalangi sudah dibayar dan tidak ditagih lagi.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            ),
+        ],
       ),
     );
   }

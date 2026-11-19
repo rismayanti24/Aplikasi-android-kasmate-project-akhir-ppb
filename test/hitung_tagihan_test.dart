@@ -224,12 +224,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pajak 11,5%'), findsOneWidget);
     expect(find.text('Rp 10.350'), findsOneWidget);
-    expect(find.text('Rp 105.350'), findsOneWidget);
+    final totalRow =
+        find.ancestor(of: find.text('Total'), matching: find.byType(Row));
+    expect(
+      find.descendant(of: totalRow, matching: find.text('Rp 105.350')),
+      findsOneWidget,
+    );
 
     await tester.ensureVisible(find.text('Tambahkan pajak'));
     await tester.tap(find.text('Tambahkan pajak'));
     await tester.pumpAndSettle();
-    expect(find.text('Rp 95.000'), findsOneWidget);
+    expect(
+      find.descendant(of: totalRow, matching: find.text('Rp 95.000')),
+      findsOneWidget,
+    );
 
     await tester.enterText(find.byType(TextFormField).at(0), '200000');
     await tester.pumpAndSettle();
