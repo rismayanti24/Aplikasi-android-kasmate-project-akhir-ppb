@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../utils/input_validation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'profil_store.dart';
@@ -845,6 +846,10 @@ class KasStore extends ValueNotifier<KasRootState> {
   // ==================== CREATE ====================
 
   void tambahAnggota({required String nama, required String noWa}) {
+    final error = validasiNomorWhatsApp(noWa);
+    if (error != null) {
+      throw ArgumentError.value(noWa, 'noWa', error);
+    }
     final g = grupAktif;
     final baru = AnggotaKas(
       id: 'a_${DateTime.now().millisecondsSinceEpoch}',

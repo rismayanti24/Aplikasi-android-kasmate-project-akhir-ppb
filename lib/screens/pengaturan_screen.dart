@@ -77,11 +77,14 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
+              TextFormField(
                 controller: waCtrl,
                 keyboardType: TextInputType.phone,
+                validator: validasiNomorWhatsApp,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 decoration: const InputDecoration(
-                  labelText: 'No WhatsApp',
+                  labelText: 'No WhatsApp (opsional)',
+                  hintText: '081234567890 atau +6281234567890',
                   border: OutlineInputBorder(),
                 ),
               ),

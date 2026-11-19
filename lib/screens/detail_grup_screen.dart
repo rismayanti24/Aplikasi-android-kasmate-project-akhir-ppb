@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/input_validation.dart';
 import 'package:flutter/services.dart';
 import '../data/kas_store.dart';
 import '../widgets/dialog_setoran.dart';
@@ -90,6 +91,7 @@ class DetailGrupScreen extends StatelessWidget {
   void _dialogTambahAnggota(BuildContext context) {
     final namaCtrl = TextEditingController();
     final waCtrl = TextEditingController();
+    final waKey = GlobalKey<FormFieldState<String>>();
 
     showDialog(
       context: context,
@@ -124,12 +126,15 @@ class DetailGrupScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
+            TextFormField(
+              key: waKey,
               controller: waCtrl,
               keyboardType: TextInputType.phone,
+              validator: validasiNomorWhatsApp,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: InputDecoration(
-                labelText: 'Nomor WhatsApp',
-                hintText: '0812xxxxxxxx',
+                labelText: 'Nomor WhatsApp (opsional)',
+                hintText: '081234567890 / +6281234567890',
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),
                 border: OutlineInputBorder(
@@ -149,6 +154,7 @@ class DetailGrupScreen extends StatelessWidget {
             onPressed: () {
               final nama = namaCtrl.text.trim();
               if (nama.isEmpty) return;
+              if (!waKey.currentState!.validate()) return;
               kasStore.tambahAnggota(
                 nama: nama,
                 noWa: waCtrl.text.trim(),

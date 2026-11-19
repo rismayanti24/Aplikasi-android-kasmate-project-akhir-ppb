@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/input_validation.dart';
 import '../widgets/dialog_setoran.dart';
 import '../data/kas_store.dart';
 import '../data/profil_store.dart';
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _bukaDialogTambahAnggota(BuildContext context) {
     final namaCtrl = TextEditingController();
     final waCtrl = TextEditingController();
+    final waKey = GlobalKey<FormFieldState<String>>();
 
     showDialog(
       context: context,
@@ -63,12 +65,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
+            TextFormField(
+              key: waKey,
               controller: waCtrl,
               keyboardType: TextInputType.phone,
+              validator: validasiNomorWhatsApp,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: InputDecoration(
-                labelText: 'Nomor WhatsApp',
-                hintText: '0812xxxxxxxx',
+                labelText: 'Nomor WhatsApp (opsional)',
+                hintText: '081234567890 / +6281234567890',
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),
                 border: OutlineInputBorder(
@@ -87,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () {
               if (namaCtrl.text.trim().isEmpty) return;
+              if (!waKey.currentState!.validate()) return;
               kasStore.tambahAnggota(
                 nama: namaCtrl.text,
                 noWa: waCtrl.text.trim(),

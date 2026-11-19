@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/input_validation.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/pengguna.dart';
@@ -16,6 +17,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _namaController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _waController = TextEditingController();
+  final _waKey = GlobalKey<FormFieldState<String>>();
   final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -76,6 +78,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       return;
     }
+
+    if (!_waKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
@@ -175,11 +179,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 decoration: _inputDecoration('nama@email.com'),
               ),
               const SizedBox(height: 16),
-              _buildLabel('Nomor WhatsApp'),
-              TextField(
+              _buildLabel('Nomor WhatsApp (opsional)'),
+              TextFormField(
+                key: _waKey,
                 controller: _waController,
                 keyboardType: TextInputType.phone,
-                decoration: _inputDecoration('0812xxxxxxxx'),
+                validator: validasiNomorWhatsApp,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: _inputDecoration('081234567890 / +6281234567890'),
               ),
               const SizedBox(height: 16),
               _buildLabel('Kata sandi'),
