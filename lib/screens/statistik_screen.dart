@@ -1072,58 +1072,106 @@ class _StatistikScreenState extends State<StatistikScreen> {
                           )
                         else ...[
                           SizedBox(
-                            height: 190,
-                            child: PieChart(
-                              PieChartData(
-                                pieTouchData: PieTouchData(
-                                  touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                                    setState(() {
-                                      if (!event.isInterestedForInteractions ||
-                                          pieTouchResponse == null ||
-                                          pieTouchResponse.touchedSection == null) {
-                                        _touchedPieIndex = -1;
-                                        return;
-                                      }
-                                      _touchedPieIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
-                                    });
-                                  },
+                            height: 210,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                PieChart(
+                                  PieChartData(
+                                    pieTouchData: PieTouchData(
+                                      touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                                        setState(() {
+                                          if (!event.isInterestedForInteractions ||
+                                              pieTouchResponse == null ||
+                                              pieTouchResponse.touchedSection == null) {
+                                            _touchedPieIndex = -1;
+                                            return;
+                                          }
+                                          _touchedPieIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                                        });
+                                      },
+                                    ),
+                                    borderData: FlBorderData(show: false),
+                                    sectionsSpace: 2,
+                                    centerSpaceRadius: 48,
+                                    sections: List.generate(
+                                      kategoriList.length,
+                                      (i) {
+                                        final isTouched = i == _touchedPieIndex;
+                                        final k = kategoriList[i];
+                                        final double radius = isTouched ? 60 : 52;
+
+                                        if (k.nominal == 0) {
+                                          return PieChartSectionData(
+                                            color: Colors.transparent,
+                                            value: 0,
+                                            showTitle: false,
+                                          );
+                                        }
+
+                                        // Sembunyikan label jika persentase < 7% agar tidak bertumpuk (Poin 54)
+                                        final tampilLabel = isTouched || k.persentase >= 7;
+                                        return PieChartSectionData(
+                                          color: k.color,
+                                          value: k.persentase,
+                                          showTitle: tampilLabel,
+                                          title: '${k.persentase.toStringAsFixed(0)}%',
+                                          radius: radius,
+                                          titleStyle: TextStyle(
+                                            fontSize: isTouched ? 13 : 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            shadows: const [
+                                              Shadow(blurRadius: 2, color: Colors.black26),
+                                            ],
+                                          ),
+                                          titlePositionPercentageOffset: 0.6,
+                                        );
+                                      },
+                                    ),
+                                  ),
                                 ),
-                                borderData: FlBorderData(show: false),
-                                sectionsSpace: 3,
-                                centerSpaceRadius: 40,
-                                sections: List.generate(
-                                  kategoriList.length,
-                                  (i) {
-                                    final isTouched = i == _touchedPieIndex;
-                                    final k = kategoriList[i];
-                                    final double fontSize = isTouched ? 13 : 11;
-                                    final double radius = isTouched ? 58 : 50;
-
-                                    if (k.nominal == 0) {
-                                      return PieChartSectionData(
-                                        color: Colors.transparent,
-                                        value: 0,
-                                        showTitle: false,
-                                      );
-                                    }
-
-                                    return PieChartSectionData(
-                                      color: k.color,
-                                      value: k.persentase,
-                                      title: '${k.persentase.toStringAsFixed(0)}%',
-                                      radius: radius,
-                                      titleStyle: TextStyle(
-                                        fontSize: fontSize,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                // Center label: tampilkan kategori yang di-touch atau total (Poin 54)
+                                if (_touchedPieIndex >= 0 && _touchedPieIndex < kategoriList.length)
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        kategoriList[_touchedPieIndex].icon,
+                                        size: 18,
+                                        color: kategoriList[_touchedPieIndex].color,
                                       ),
-                                    );
-                                  },
-                                ),
-                              ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${kategoriList[_touchedPieIndex].persentase.toStringAsFixed(0)}%',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                          color: kategoriList[_touchedPieIndex].color,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.pie_chart_rounded, size: 18, color: Color(0xFF94A3B8)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        formatRupiah(totalKategori),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 8),
                         ],
 
                         // Breakdown Items — tappable drill-down (Poin 53)
